@@ -1,0 +1,23 @@
+services:
+  web:
+    image: xd0ismczkusqorbq6c92ygyh:0ae7be5711e3812623f72d356f34f9fe0fa23c49
+    restart: unless-stopped
+    networks:
+      - default
+      - coolify
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.lge-prod.rule=Host(`pilot.anagataitsolutions.in`)
+      - traefik.http.routers.lge-prod.entrypoints=http
+      - traefik.http.routers.lge-prod.middlewares=lge-prod-redir
+      - traefik.http.middlewares.lge-prod-redir.redirectscheme.scheme=https
+      - traefik.http.routers.lge-prod-sec.rule=Host(`pilot.anagataitsolutions.in`)
+      - traefik.http.routers.lge-prod-sec.entrypoints=https
+      - traefik.http.routers.lge-prod-sec.tls=true
+      - traefik.http.routers.lge-prod-sec.tls.certresolver=letsencrypt
+      - traefik.http.services.lge-prod.loadbalancer.server.port=80
+    ports:
+      - "3102:80"
+networks:
+  coolify:
+    external: true
