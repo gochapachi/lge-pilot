@@ -1,0 +1,37 @@
+# LGE pilot data stack: PostgreSQL + PostgREST + MinIO (S3 asset storage)
+# All credentials come from Coolify environment variables (set in UI before first deploy).
+# Never put literal secrets in this file (SOP rule 5). See lge-stack.env.example.
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    volumes:
+      - lge-pgdata:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+  rest:
+    image: postgrest/postgrest:latest
+    environment:
+      - PGRST_DB_URI=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      - PGRST_DB_SCHEMA=public
+      - PGRST_DB_ANON_ROLE=lge_anon
+    ports:
+      - "3100:3000"
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+    volumes:
+      - lge-minio:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+volumes:
+  lge-pgdata:
+  lge-minio:
