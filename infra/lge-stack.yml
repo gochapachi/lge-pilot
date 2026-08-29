@@ -1,0 +1,37 @@
+# LGE pilot data stack: PostgreSQL + PostgREST + MinIO (S3 asset storage)
+# Deployed via Coolify from this file. Pilot literals per SOP rule 5 — move to Coolify envs before prod clients.
+# Tech-debt: TODO issue #1
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=lge_admin
+      - POSTGRES_PASSWORD=ChangeMe_LGE_pg_2026
+      - POSTGRES_DB=lge
+    volumes:
+      - lge-pgdata-final:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+  rest:
+    image: postgrest/postgrest:latest
+    environment:
+      - PGRST_DB_URI=postgres://lge_admin:ChangeMe_LGE_pg_2026@db:5432/lge
+      - PGRST_DB_SCHEMA=public
+      - PGRST_DB_ANON_ROLE=lge_anon
+    ports:
+      - "3100:3000"
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=lge_minio
+      - MINIO_ROOT_PASSWORD=ChangeMe_LGE_minio_2026
+    volumes:
+      - lge-minio-final:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+volumes:
+  lge-pgdata-final:
+  lge-minio-final:
