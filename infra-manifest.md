@@ -21,6 +21,13 @@
 | 2026-08-29 | Evolution | 5+2 test WA msgs to 917705****46 | secrets/last_drill.json | pilot drill D1 | n/a |
 | 2026-08-29 | Odoo | chatter note on lead 10421 | lead 10421 | drill audit | delete note |
 
+| 2026-08-29 | Coolify | app dockerfile-pack (deleted, never cloned repo) | — | learning | — |
+| 2026-08-29 | Coolify | app /public xgkqb... (token-URL, stripped) | — | learning | — |
+| 2026-08-29 | Coolify | app lge-dashboard-staging (ssh+key, image built; ParseAddr bug on start) | tku33uuof3ap37pzcfvof7va | learn ParseAddr IPv6 bug | delete app |
+| 2026-08-29 | Coolify | service lge-dashboard-staging-web (serves built image, traefik) | bd5ruzmtyh1nekgjs4qb69zd | **STAGING LIVE** pilot-staging.anagataitsolutions.in :3101 | delete service |
+| 2026-08-29 | GitHub | repo made PUBLIC (sanitized, PR#4; audit: zero real secrets) | 1350357715 | Coolify clone access | re-private post-pilot |
+| 2026-08-29 | GitHub | deploy key added (ed25519, id 161654395) + Coolify key lge-deploy-key | — | future private deploys | delete both |
+
 ## Pending after DB healthy
 apply schema-pg.sql (43 stmts + test-lead seed) → PostgREST :3100 probe → dashboard app deploy → MinIO bucket `lge-assets` creation
 | 2026-08-29 | Coolify | app lge-dashboard-staging (branch staging) | b3ajomufklzssswfftpxamy0 | http://pilot-staging.anagataitsolutions.in | delete app |
