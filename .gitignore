@@ -1,0 +1,6 @@
+secrets/
+*.log
+__pycache__/
+node_modules/
+.crumbs/
+.DS_Store
