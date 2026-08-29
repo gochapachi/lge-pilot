@@ -1,22 +1,22 @@
 # LGE pilot data stack: PostgreSQL + PostgREST + MinIO (S3 asset storage)
-# Deployed via Coolify from this file. Pilot literals per SOP rule 5 — move to Coolify envs before prod clients.
-# Tech-debt: TODO issue #1
+# All credentials come from Coolify environment variables (set in UI before first deploy).
+# Never put literal secrets in this file (SOP rule 5). See lge-stack.env.example.
 services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      - POSTGRES_USER=lge_admin
-      - POSTGRES_PASSWORD=ChangeMe_LGE_pg_2026
-      - POSTGRES_DB=lge
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
     volumes:
-      - lge-pgdata-final:/var/lib/postgresql/data
+      - lge-pgdata:/var/lib/postgresql/data
     ports:
       - "5433:5432"
   rest:
     image: postgrest/postgrest:latest
     environment:
-      - PGRST_DB_URI=postgres://lge_admin:ChangeMe_LGE_pg_2026@db:5432/lge
+      - PGRST_DB_URI=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       - PGRST_DB_SCHEMA=public
       - PGRST_DB_ANON_ROLE=lge_anon
     ports:
@@ -25,13 +25,13 @@ services:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
     environment:
-      - MINIO_ROOT_USER=lge_minio
-      - MINIO_ROOT_PASSWORD=ChangeMe_LGE_minio_2026
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
     volumes:
-      - lge-minio-final:/data
+      - lge-minio:/data
     ports:
       - "9000:9000"
       - "9001:9001"
 volumes:
-  lge-pgdata-final:
-  lge-minio-final:
+  lge-pgdata:
+  lge-minio:
