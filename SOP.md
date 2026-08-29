@@ -11,10 +11,12 @@
 6. Every PR title: `feat:|fix:|infra:|docs: <what>` · small, single-purpose diffs.
 7. Rollback = `git revert` PR to staging + Redeploy. Never force-push any shared branch.
 
-## Merge policy (solo-founder-lean, adjustable)
-- `feat/* → staging`: LGE agent merges after self-review IF change is additive (new files/docs);
-  anything touching existing behavior → PR link sent to owner on WhatsApp for 1-click review.
-- `staging → main`: ALWAYS owner merges (that's the production trigger).
+## Merge policy (amended 29-Aug by owner in chat: 'you can merge working PRs too — just follow the SOP')
+- `feat/* → staging`: agent merges after self-review (additive or verified-healthy changes).
+- `staging → main`: agent MAY merge IF (a) staging env verified healthy (200 + service checks),
+  (b) PR diff reviewed, (c) manifest/DEPLOY-STATE updated in the same or prior merged PR.
+  Owner retains veto: any direct 'revert that' in chat wins immediately.
+- Every production merge gets a `vX.Y.Z` tag + entry in DEPLOY-STATE.md.
 
 ## Repo map
 - `dashboard/` — control tower SPA + schema-pg.sql
