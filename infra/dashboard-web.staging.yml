@@ -1,0 +1,23 @@
+services:
+  web:
+    image: tku33uuof3ap37pzcfvof7va:abe199ff52293565782ab91fc04bda8d7d552593
+    restart: unless-stopped
+    networks:
+      - default
+      - coolify
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.lge-staging.rule=Host(`pilot-staging.anagataitsolutions.in`)
+      - traefik.http.routers.lge-staging.entrypoints=http
+      - traefik.http.routers.lge-staging.middlewares=lge-staging-redir
+      - traefik.http.middlewares.lge-staging-redir.redirectscheme.scheme=https
+      - traefik.http.routers.lge-staging-sec.rule=Host(`pilot-staging.anagataitsolutions.in`)
+      - traefik.http.routers.lge-staging-sec.entrypoints=https
+      - traefik.http.routers.lge-staging-sec.tls=true
+      - traefik.http.routers.lge-staging-sec.tls.certresolver=letsencrypt
+      - traefik.http.services.lge-staging.loadbalancer.server.port=80
+    ports:
+      - "3101:80"
+networks:
+  coolify:
+    external: true
