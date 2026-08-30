@@ -2,57 +2,129 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
 <title>GTM Control Tower</title>
 <style>
-:root{--bg:#0b0e14;--card:#141926;--card2:#1a2133;--line:#242d42;--txt:#e6ebf4;--mut:#8b95a9;--acc:#4f8cff;--ok:#2ecc71;--warn:#f5a623;--bad:#ff5c5c;--hot:#ff7a45}
+:root{--bg:#0b0e14;--card:#151b2a;--card2:#1d2538;--line:#2b3550;--txt:#eef2f9;--mut:#9aa6bc;
+--acc:#4f8cff;--acc2:#7aa7ff;--ok:#2ecc71;--warn:#f5a623;--bad:#ff5c5c;--hot:#ff7a45;
+--header-h:56px;--radius:14px}
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--txt);font:15px/1.45 -apple-system,'Segoe UI',Roboto,sans-serif;padding-bottom:70px}
-a{color:var(--acc);text-decoration:none}
-h1{font-size:1.3rem}h2{font-size:1.05rem;margin-bottom:10px}
-.top{position:sticky;top:0;background:rgba(11,14,20,.95);backdrop-filter:blur(6px);padding:12px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;z-index:10}
-.tabs{display:flex;gap:4px;overflow-x:auto;position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--line);padding:6px 8px;z-index:10}
-.tabs button{flex:1;background:none;border:none;color:var(--mut);font-size:.68rem;padding:6px 2px;cursor:pointer;border-radius:8px;white-space:nowrap}
-.tabs button.on{color:var(--acc);background:var(--card2)}
-main{padding:14px 16px;max-width:1100px;margin:0 auto}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--txt);font:15px/1.5 -apple-system,'Segoe UI',Roboto,'Noto Sans',sans-serif;
+padding-bottom:calc(76px + env(safe-area-inset-bottom))}
+a{color:var(--acc2);text-decoration:none}
+h1{font-size:1.1rem}h2{font-size:1rem;margin-bottom:10px}h3{font-size:.85rem}
+/* ---------- header ---------- */
+.top{position:sticky;top:0;height:var(--header-h);background:rgba(11,14,20,.92);backdrop-filter:blur(8px);
+border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;padding:0 16px;z-index:20}
+.brand{font-weight:700;letter-spacing:.02em;white-space:nowrap}
+.conn-dot{width:9px;height:9px;border-radius:50%;background:var(--mut);flex:none}
+.conn-dot.ok{background:var(--ok);box-shadow:0 0 6px var(--ok)}
+.conn-dot.bad{background:var(--bad)}
+.topmain{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--mut);font-size:.9rem}
+/* ---------- nav ---------- */
+.topnav{display:none;gap:2px}
+.topnav button{background:none;border:none;color:var(--mut);font-size:.85rem;padding:8px 12px;cursor:pointer;border-radius:9px;white-space:nowrap}
+.topnav button.on{color:#fff;background:var(--card2)}
+.topnav button:hover{color:var(--txt)}
+.tabs{display:flex;gap:2px;position:fixed;bottom:0;left:0;right:0;background:var(--card);
+border-top:1px solid var(--line);padding:6px 8px calc(6px + env(safe-area-inset-bottom));z-index:20}
+.tabs button{flex:1;background:none;border:none;color:var(--mut);font-size:.62rem;padding:5px 2px;cursor:pointer;border-radius:9px;white-space:nowrap}
+.tabs button .ti{display:block;font-size:1.05rem;line-height:1.25}
+.tabs button.on{color:var(--acc2);background:var(--card2)}
+@media(min-width:768px){
+  body{padding-bottom:0}
+  .tabs{display:none}
+  .topnav{display:flex}
+  .topmain{font-size:.85rem}
+}
+/* ---------- layout ---------- */
+main{padding:14px 14px;max-width:1100px;margin:0 auto}
 .grid{display:grid;gap:12px}
-.g2{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
-.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
-.kpi{display:flex;flex-direction:column;gap:2px}
-.kpi b{font-size:1.6rem}
-.kpi span{color:var(--mut);font-size:.75rem;text-transform:uppercase;letter-spacing:.04em}
-.pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:.7rem;border:1px solid var(--line)}
-.p-new{color:#9aa7bd}.p-contacted{color:#7fb3ff;border-color:#2c4a80}.p-replied{color:#ffd479;border-color:#6b5a24}.p-probing{color:#ffb36b;border-color:#6e4a26}.p-demo_sent{color:#c792ea;border-color:#5b3a73}.p-negotiating{color:#82e0aa;border-color:#2e6b45}.p-closed_won{color:#2ecc71;border-color:#1d7a44}.p-closed_lost{color:#ff8080;border-color:#7a2e2e}
+.g2{grid-template-columns:repeat(auto-fit,minmax(min(340px,100%),1fr))}
+.kpis{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(min(150px,100%),1fr));margin-bottom:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px;min-width:0}
+.kpi b{font-size:1.45rem;display:block;line-height:1.2}
+.kpi span{color:var(--mut);font-size:.72rem;text-transform:uppercase;letter-spacing:.05em}
+.pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:.7rem;border:1px solid var(--line);white-space:nowrap}
+.p-new{color:#9aa7bd}.p-contacted{color:#7fb3ff;border-color:#2c4a80}.p-replied{color:#ffd479;border-color:#6b5a24}
+.p-probing{color:#ffb36b;border-color:#6e4a26}.p-demo_sent{color:#c792ea;border-color:#5b3a73}
+.p-negotiating{color:#82e0aa;border-color:#2e6b45}.p-followup{color:#8fd3ff;border-color:#2b5a78}
+.p-closed_won{color:#2ecc71;border-color:#1d7a44}.p-closed_lost{color:#ff8080;border-color:#7a2e2e}
+/* ---------- tables ---------- */
+.tbl{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:10px}
+.tbl table{min-width:520px}
 table{width:100%;border-collapse:collapse;font-size:.85rem}
-th{color:var(--mut);text-align:left;font-weight:500;padding:6px 8px;border-bottom:1px solid var(--line);position:sticky;top:52px;background:var(--card)}
-td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--mut);text-align:left;font-weight:500;padding:7px 8px;border-bottom:1px solid var(--line);
+position:sticky;top:var(--header-h);background:var(--card);z-index:2}
+td{padding:8px;border-bottom:1px solid var(--line);vertical-align:top}
 tr.click:hover{background:var(--card2);cursor:pointer}
-button,.btn{background:var(--card2);color:var(--txt);border:1px solid var(--line);border-radius:10px;padding:8px 12px;cursor:pointer;font-size:.85rem}
-button.pri{background:var(--acc);border-color:var(--acc);color:#fff}
+/* ---------- controls ---------- */
+button,.btn{background:var(--card2);color:var(--txt);border:1px solid var(--line);border-radius:10px;
+padding:10px 14px;cursor:pointer;font-size:.9rem;min-height:40px}
+button.pri{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
+button.pri:active{filter:brightness(.9)}
 button.danger{border-color:#7a2e2e;color:#ff8080}
-button.sm{padding:4px 9px;font-size:.75rem}
-input,select,textarea{background:var(--bg);border:1px solid var(--line);color:var(--txt);border-radius:10px;padding:9px 11px;font-size:.9rem;width:100%}
-textarea{min-height:70px;resize:vertical}
+button.sm{padding:5px 10px;font-size:.78rem;min-height:32px}
+input,select,textarea{background:#0f1523;border:1px solid var(--line);color:var(--txt);border-radius:10px;
+padding:10px 12px;font-size:16px;width:100%;min-height:42px}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px rgba(79,140,255,.18)}
+textarea{min-height:74px;resize:vertical;font-size:.9rem}
 label{display:block;color:var(--mut);font-size:.75rem;margin:10px 0 4px}
-.row{display:flex;gap:8px;align-items:center}.row>*{flex:1}
-.chat{display:flex;flex-direction:column;gap:3px;max-height:45vh;overflow-y:auto;padding:6px 2px}
-.msg{max-width:82%;padding:7px 11px;border-radius:14px;font-size:.88rem;white-space:pre-wrap}
+.row{display:flex;gap:8px;align-items:center}
+.row>*{flex:1;min-width:0}
+.row.wrap{flex-wrap:wrap}
+.row.wrap>*{flex:1 1 140px}
+/* ---------- chat / drawer ---------- */
+.chat{display:flex;flex-direction:column;gap:4px;max-height:46vh;overflow-y:auto;padding:6px 2px}
+.msg{max-width:84%;padding:7px 11px;border-radius:14px;font-size:.88rem;white-space:pre-wrap;overflow-wrap:break-word}
 .msg.out{align-self:flex-end;background:#1f3a63}
 .msg.in{align-self:flex-start;background:var(--card2)}
 .msg .t{display:block;font-size:.62rem;color:var(--mut);margin-top:2px}
-.drawer{position:fixed;top:0;right:0;bottom:0;width:min(480px,100%);background:var(--card);border-left:1px solid var(--line);z-index:30;overflow-y:auto;padding:16px;transform:translateX(100%);transition:.2s}
+.backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:30;display:none}
+.drawer{position:fixed;z-index:40;background:var(--card);overflow-y:auto;padding:16px;padding-bottom:calc(16px + env(safe-area-inset-bottom));
+transform:translateY(105%);transition:transform .22s ease;
+left:0;right:0;bottom:0;max-height:92dvh;border-radius:18px 18px 0 0;border-top:1px solid var(--line)}
 .drawer.open{transform:none}
-.backdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:25;display:none}
+.grab{width:44px;height:5px;border-radius:3px;background:var(--line);margin:-6px auto 10px}
+@media(min-width:768px){
+  .drawer{top:0;right:0;bottom:auto;left:auto;width:min(500px,46vw);max-height:100dvh;
+  border-radius:0;border-left:1px solid var(--line);transform:translateX(105%)}
+  .drawer.open{transform:none}
+  .grab{display:none}
+}
 .esc{border-left:3px solid var(--bad);padding-left:10px;margin-bottom:10px}
-.toast{position:fixed;top:14px;left:50%;transform:translateX(-50%);background:var(--acc);color:#fff;padding:10px 18px;border-radius:12px;z-index:99;display:none;font-size:.85rem}
+.toast{position:fixed;top:calc(12px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);
+background:var(--acc);color:#fff;padding:10px 18px;border-radius:12px;z-index:99;display:none;font-size:.85rem;
+max-width:92vw;text-align:center;box-shadow:0 6px 20px rgba(0,0,0,.4)}
 .mut{color:var(--mut)}.sm{font-size:.78rem}.ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}
-canvas{max-width:100%}
 .bar{height:8px;border-radius:6px;background:var(--line);overflow:hidden}.bar i{display:block;height:100%;background:var(--acc)}
 .hide{display:none!important}
+.empty{padding:26px 14px;text-align:center;color:var(--mut)}
+.empty .e{font-size:1.9rem;display:block;margin-bottom:6px}
+.empty .pri{margin-top:12px}
+code{background:var(--card2);border-radius:6px;padding:1px 6px;font-size:.82em;overflow-wrap:anywhere}
+.chip{display:inline-flex;gap:5px;align-items:center;background:var(--card2);border:1px solid var(--line);
+border-radius:99px;padding:4px 11px;font-size:.75rem;margin:2px 4px 2px 0}
+.moremenu a{display:flex;align-items:center;gap:12px;padding:14px;border-radius:12px;background:var(--card2);
+border:1px solid var(--line);margin-bottom:8px;color:var(--txt);font-size:.95rem}
+.moremenu a .mi{font-size:1.2rem}
+.statrow{display:flex;align-items:center;gap:10px;background:var(--card2);border:1px solid var(--line);
+border-radius:12px;padding:12px;margin:10px 0;flex-wrap:wrap}
+.pipewrap{overflow-x:auto;margin-bottom:12px}
+.pipe{display:flex;gap:8px;min-width:max-content}
+.pipe a{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 14px;text-align:center;min-width:86px}
+.pipe a b{display:block;font-size:1.15rem}
+.pipe a span{font-size:.68rem;color:var(--mut);text-transform:uppercase;letter-spacing:.04em}
 </style>
 </head>
 <body>
-<div class="top"><h1 id="title">GTM Control Tower</h1><span class="sm mut" id="conn"></span></div>
+<header class="top">
+  <span class="conn-dot" id="conn"></span>
+  <h1 class="brand">LGE</h1>
+  <nav class="topnav" id="topnav"></nav>
+  <span class="topmain" id="title"></span>
+</header>
 <main id="app"></main>
 <div class="backdrop" id="backdrop" onclick="closeDrawer()"></div>
 <div class="drawer" id="drawer"></div>
@@ -60,103 +132,132 @@ canvas{max-width:100%}
 <nav class="tabs" id="tabs"></nav>
 
 <script>
-/* ============ config (localStorage) ============ */
+/* ================= config (pre-configured, zero setup) ================= */
+const VER='v0.3.0';
 const LS=window.localStorage;
+const DEFAULT_URL=location.origin+'/api';
 const cfg={
-  get url(){return LS.getItem('sb_url')||''},
-  get key(){return LS.getItem('sb_key')||''},
+  get url(){return LS.getItem('sb_url')||DEFAULT_URL},
+  get key(){return LS.getItem('sb_key')||'lge'},
   get bridge(){return LS.getItem('bridge_url')||''},
-  set(k,v){LS.setItem(k,v)}
+  set(k,v){v?LS.setItem(k,v):LS.removeItem(k)}
 };
-async function sb(path,opts={},q=''){
-  const r=await fetch(`${cfg.url}/rest/v1/${path}${q}`,{...opts,
+const API_BASE=()=>cfg.url.includes('supabase')?cfg.url.replace(/\/+$/,'')+'/rest/v1':cfg.url.replace(/\/+$/,'');
+async function sb(path,opts={}){
+  const r=await fetch(`${API_BASE()}/${path}`,{...opts,
     headers:{'apikey':cfg.key,'Authorization':'Bearer '+cfg.key,'Content-Type':'application/json','Prefer':'return=representation',...(opts.headers||{})}});
-  if(!r.ok) throw new Error((await r.text()).slice(0,300));
-  const t=r.text();return t?JSON.parse(t):null;
+  if(!r.ok) throw new Error((await r.text()).slice(0,200));
+  const t=await r.text();return t?JSON.parse(t):null;
 }
-const rpc=async(fn,args)=>{const r=await fetch(`${cfg.url}/rest/v1/rpc/${fn}`,{method:'POST',
+const rpc=async(fn,args)=>{const r=await fetch(`${API_BASE()}/rpc/${fn}`,{method:'POST',
   headers:{'apikey':cfg.key,'Authorization':'Bearer '+cfg.key,'Content-Type':'application/json'},body:JSON.stringify(args)});
-  if(!r.ok) throw new Error((await r.text()).slice(0,300));const t=await r.text();return t?JSON.parse(t):null};
-function toast(m){const t=document.getElementById('toast');t.textContent=m;t.style.display='block';setTimeout(()=>t.style.display='none',2500)}
+  if(!r.ok) throw new Error((await r.text()).slice(0,200));const t=await r.text();return t?JSON.parse(t):null};
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.style.display='block';clearTimeout(t._tm);t._tm=setTimeout(()=>t.style.display='none',2600)}
 const esc=s=>(s??'').toString().replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt=n=>new Date(n).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
-const fmtD=n=>new Date(n).toLocaleDateString('en-IN',{day:'2-digit',month:'short'});
-const INR=n=>'₹'+Number(n).toLocaleString('en-IN');
+const INR=n=>'₹'+Number(n||0).toLocaleString('en-IN');
+const empty=(e,t,cta='')=>`<div class="empty"><span class="e">${e}</span>${t}${cta}</div>`;
+const v=id=>document.getElementById(id)?.value;
+const waLink=p=>{let d=(p||'').replace(/\D/g,'');if(d.length===10)d='91'+d;if(d.startsWith('0'))d='91'+d.slice(1);return d?'https://wa.me/'+d:''};
 
-/* ============ router ============ */
-const TABS=[['today','🧭 Today'],['sales','💰 Sales'],['inbox','💬 Inbox'],['delivery','📦 Delivery'],['esc','🚨 Escalations'],['vault','🔐 Vault'],['analytics','📈 Analytics'],['settings','⚙️']];
+/* ================= router ================= */
+const NAV=[['today','🧭','Today'],['sales','💰','Sales'],['inbox','💬','Inbox'],['delivery','📦','Delivery'],
+  ['esc','🚨','Escalations'],['vault','🔐','Vault'],['analytics','📈','Analytics'],['conn','⚙️','Connection']];
+const MOBILE_TABS=[['today','🧭','Today'],['sales','💰','Sales'],['inbox','💬','Inbox'],['analytics','📈','Analytics'],['more','⋯','More']];
 let tab='today'; if(location.hash.includes('portal')) tab='PORTAL';
-const stageOrder=['new','contacted','replied','probing','demo_sent','negotiating','closed_won','closed_lost'];
+const stageOrder=['new','contacted','replied','probing','demo_sent','negotiating','followup','closed_won','closed_lost'];
 const stageLabel=s=>s.replace('_',' ');
-function renderTabs(){document.getElementById('tabs').innerHTML=TABS.map(([id,l])=>
-  `<button class="${tab===id?'on':''}" onclick="go('${id}')">${l}</button>`).join('')}
-function go(t){tab=t;renderTabs();render();if(t==='PORTAL')renderPortal()}
+function renderNav(){
+  const on=id=>tab===id?'on':'';
+  document.getElementById('topnav').innerHTML=NAV.map(([id,i,l])=>`<button class="${on(id)}" onclick="go('${id}')">${i} ${l}</button>`).join('');
+  document.getElementById('tabs').innerHTML=MOBILE_TABS.map(([id,i,l])=>
+    `<button class="${on(id)}" onclick="go('${id}')"><span class="ti">${i}</span>${l}</button>`).join('');
+}
+function go(t){tab=t;renderNav();closeDrawer();render()}
 window.go=go;
 
-/* ============ TODAY ============ */
+/* ================= connection status ================= */
+async function pingAPI(){
+  const t0=performance.now();
+  await sb('leads?select=id&limit=1');
+  return Math.round(performance.now()-t0);
+}
+function setConn(state){const d=document.getElementById('conn');d.className='conn-dot '+(state||'')}
+async function autoPing(){try{const ms=await pingAPI();setConn('ok');return ms}catch(e){setConn('bad');return null}}
+
+/* ================= TODAY ================= */
 async function loadToday(){
-  const [escs,tiks,follows,evs,leads]=await Promise.all([
+  const [escs,tiks,follows,evs,pipeline]=await Promise.all([
     sb('escalations?select=*&status=open&order=created_at.desc'),
     sb('tickets?select=*&status=in(open,in_progress)&order=sla_due.asc'),
     sb('leads?select=*&stage=in(contacted,replied,probing,demo_sent,negotiating)&next_action_at=not.is.null&order=next_action_at.asc&limit=20'),
     sb('events?select=*&order=created_at.desc&limit=15'),
-    sb('leads?select=id,is_test')]);
-  const today=new Date().toDateString();
-  const msgsToday=await sb(`messages?select=id,direction,constitution=created_at&created_at=gte.${new Date().setHours(0,0,0,0)}`).catch(()=>[]);
+    sb('crm_lead?select=stage').catch(()=>[])]);
+  const msgsToday=await sb(`messages?select=id,direction,created_at&created_at=gte.${new Date().setHours(0,0,0,0)}`).catch(()=>[]);
   const pays=await sb('payments?select=amount,status&created_at=gte.'+new Date().setHours(0,0,0,0)).catch(()=>[]);
   const paidToday=pays.filter(p=>p.status==='paid').reduce((s,p)=>s+ +p.amount,0);
-  const sentToday=(msgsToday||[]).filter(m=>m.direction==='out').length;
-  const inToday=(msgsToday||[]).filter(m=>m.direction==='in').length;
-  const dueLeads=leads.filter(l=>new Date(l.next_action_at)<=new Date());
-  return {escs,tiks,follows,evs,dueLeads,sentToday,inToday,paidToday};
+  const sentToday=msgsToday.filter(m=>m.direction==='out').length;
+  const inToday=msgsToday.filter(m=>m.direction==='in').length;
+  const dueLeads=follows.filter(l=>new Date(l.next_action_at)<=new Date());
+  const pc={};pipeline.forEach(r=>pc[r.stage]=(pc[r.stage]||0)+1);
+  return {escs,tiks,follows,evs,dueLeads,sentToday,inToday,paidToday,pc,pipelineTotal:pipeline.length};
 }
 async function viewToday(){
-  const d=await loadToday();
-  document.getElementById('conn').textContent='supabase ✓';
+  const d=await loadToday();setConn('ok');
+  const chip=(st,label)=>`<a onclick="go('sales')"><b>${d.pc[st]||0}</b><span>${label}</span></a>`;
   return `
-  <div class="grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:12px">
+  <div class="kpis">
+    <div class="card kpi"><b>${d.pipelineTotal||0}</b><span>pipeline leads</span></div>
     <div class="card kpi"><b>${d.sentToday}</b><span>msgs sent</span></div>
     <div class="card kpi"><b>${d.inToday}</b><span>replies in</span></div>
     <div class="card kpi"><b class="${d.paidToday?'ok':''}">${INR(d.paidToday)}</b><span>paid today</span></div>
   </div>
+  <div class="pipewrap"><div class="pipe">
+    ${chip('new','new')}${chip('contacted','contacted')}${chip('replied','replied')}${chip('probing','probing')}
+    ${chip('demo_sent','demo sent')}${chip('negotiating','negotiating')}${chip('closed_won','won ✦')}${chip('followup','follow-up')}
+  </div></div>
   <div class="grid g2">
     <div class="card"><h2>⏰ Follow-ups due (${d.dueLeads.length})</h2>
-      ${d.dueLeads.map(l=>`<div class="row" style="margin:6px 0"><div class="click" onclick="openLead('${l.id}')" style="flex:2">${esc(l.business||l.name)} <span class="pill p-${l.stage}">${stageLabel(l.stage)}</span></div><button class="sm" onclick="snooze('${l.id}',1)">+1h</button><button class="sm pri" onclick="go('inbox');openLead('${l.id}')">Chat</button></div>`).join('')||'<span class="mut sm">Nothing due 🎉</span>'}</div>
+      ${d.dueLeads.map(l=>`<div class="row wrap" style="margin:6px 0"><div class="click" onclick="openLead('ops:${l.id}')" style="flex:2 1 160px">${esc(l.business||l.name)} <span class="pill p-${l.stage}">${stageLabel(l.stage)}</span></div><button class="sm" onclick="snooze('${l.id}',1)">+1h</button><button class="sm pri" onclick="go('inbox');openLead('ops:${l.id}')">Chat</button></div>`).join('')||empty('🎉','Nothing due — inbox is clear.')}</div>
     <div class="card"><h2>🚨 Escalations (${d.escs.length})</h2>
-      ${d.escs.slice(0,5).map(e=>`<div class="esc sm"><b>${esc(e.reason)}</b> — ${esc(e.detail||'')} <a onclick="go('esc')">open →</a></div>`).join('')||'<span class="mut sm">None open</span>'}</div>
+      ${d.escs.slice(0,5).map(e=>`<div class="esc sm"><b>${esc(e.reason)}</b> — ${esc(e.detail||'')} <a onclick="go('esc')">open →</a></div>`).join('')||empty('✅','None open.')}</div>
     <div class="card"><h2>🎫 Tickets (${d.tiks.length})</h2>
-      ${d.tiks.slice(0,5).map(t=>`<div class="sm" style="margin:6px 0">[${esc(t.priority)}] ${esc(t.title)} <span class="mut">SLA ${fmt(t.sla_due)}</span></div>`).join('')||'<span class="mut sm">None</span>'}</div>
-    <div class="card"><h2>🧵 Latest events</h2>${d.evs.map(e=>`<div class="sm mut">${fmt(e.created_at)} — ${esc(e.type)} ${esc(e.payload?.text||'')}</div>`).join('')}</div>
+      ${d.tiks.slice(0,5).map(t=>`<div class="sm" style="margin:6px 0">[${esc(t.priority)}] ${esc(t.title)} <span class="mut">SLA ${fmt(t.sla_due)}</span></div>`).join('')||empty('✅','No open tickets.')}</div>
+    <div class="card"><h2>🧵 Latest events</h2>${d.evs.slice(0,10).map(e=>`<div class="sm mut">${fmt(e.created_at)} — ${esc(e.type)} ${esc(e.payload?.text||'')}</div>`).join('')||empty('🧵','Events will appear as outreach runs.')}</div>
   </div>`;
 }
 
-/* ============ SALES ============ */
+/* ================= SALES (crm_lead) ================= */
+const CRM_FIELDS='id,odoo_id,name,business,contact_name,phone,mobile,email,stage,source,is_test,created_at,updated_at';
 async function viewSales(){
-  const leads=await sb('leads?select=*&order=updated_at.desc&limit=200');
-  window._leads=Object.fromEntries(leads.map(l=>[l.id,l]));
-  return ['new','contacted','replied','probing','demo_sent','negotiating','closed_won','closed_lost'].map(st=>{
+  const leads=await sb(`crm_lead?select=${CRM_FIELDS}&order=updated_at.desc&limit=400`);
+  window._crm=Object.fromEntries(leads.map(l=>['crm:'+l.id,l]));
+  return stageOrder.map(st=>{
     const ls=leads.filter(l=>l.stage===st);
-    if(['closed_won','closed_lost'].includes(st)&&!ls.length)return'';
+    if(['closed_won','closed_lost','followup'].includes(st)&&!ls.length)return'';
     return `<h2 style="margin:14px 0 8px">${stageLabel(st)} <span class="mut sm">(${ls.length})</span></h2>
-    ${ls.map(l=>`<div class="card click" style="margin-bottom:8px" onclick="openLead('${l.id}')">
-      <div class="row"><b style="flex:2">${esc(l.business||l.name)}${l.is_test?' 🧪':''}</b><span class="pill p-${l.stage}">${stageLabel(l.stage)}</span><span class="${l.score>60?'hot':l.score>30?'warn':'mut'} sm">🔥${l.score}</span></div>
-      ${l.next_action?`<div class="sm mut">next: ${esc(l.next_action)} @ ${fmt(l.next_action_at)}</div>`:''}</div>`).join('')}`;
+    ${ls.slice(0,30).map(l=>`<div class="card click" style="margin-bottom:8px" onclick="openLead('crm:${l.id}')">
+      <div class="row wrap"><b style="flex:2 1 160px">${esc(l.business||l.name)}${l.is_test?' 🧪':''}</b><span class="pill p-${l.stage}">${stageLabel(l.stage)}</span></div>
+      ${l.contact_name||l.phone||l.mobile?`<div class="sm mut">${esc(l.contact_name||'')} ${l.phone||l.mobile?'· '+esc(l.phone||l.mobile):''}</div>`:''}</div>`).join('')}
+    ${ls.length>30?`<div class="sm mut" style="margin:4px 0 8px">+ ${ls.length-30} more…</div>`:''}`;
   }).join('')+`<div style="margin:20px 0"><button class="pri" onclick="newLeadForm()">+ New lead</button></div>`;
 }
 function newLeadForm(){
-  openDrawer(`<h2>New lead</h2>
+  openDrawer(`<div class="grab"></div><h2>New lead</h2>
   <label>Business</label><input id="nl_b"><label>Person</label><input id="nl_n">
-  <label>Niche</label><input id="nl_k" value="dentist"><label>Phone</label><input id="nl_p">
-  <div style="margin-top:14px"><button class="pri" onclick="saveLead()">Save</button></div>`);
+  <label>Niche</label><input id="nl_k" value="dentist"><label>Phone</label><input id="nl_p" inputmode="tel">
+  <div style="margin-top:14px"><button class="pri" onclick="saveLead()" style="width:100%">Save lead</button></div>`);
 }
 async function saveLead(){
   const b=v('nl_b'),n=v('nl_n'),p=v('nl_p');
-  const [l]=await sb('leads',{method:'POST',body:JSON.stringify({business:b,name:n,phone:p,source:'manual'})});
-  await sb('events',{method:'POST',body:JSON.stringify({type:'lead_created',lead_id:l.id,payload:{text:b}})});
-  toast('_lead created');closeDrawer();go('sales');render();
+  if(!b)return toast('business name required');
+  const [l]=await sb('crm_lead',{method:'POST',body:JSON.stringify({name:b,business:b,contact_name:n,phone:p,source:'manual'})});
+  toast('lead created');closeDrawer();go('sales');
 }
-async function openLead(id){
-  const l=(window._leads||await leadMap())[id]; if(!l)return;
+async function openLead(key){
+  if(key.startsWith('crm:'))return openCrmLead(+key.slice(4));
+  const id=+key.split(':')[1]||+key;
+  const l=(window._opsLeads||await opsLeadMap())[id]; if(!l)return;
   const [msgs,demos,pays,out]=await Promise.all([
     sb(`messages?lead_id=eq.${id}&order=created_at.asc&limit=100`),
     sb(`demos?lead_id=eq.${id}&order=sent_at.desc`),
@@ -164,134 +265,171 @@ async function openLead(id){
     sb(`outreach_log?lead_id=eq.${id}&order=created_at.desc&limit=10`)]);
   window._leadId=id;
   openDrawer(`
+   <div class="grab"></div>
    <div class="row"><h2>${esc(l.business||l.name)}</h2><button class="sm" onclick="closeDrawer()">✕</button></div>
-   <div class="row sm" style="margin:8px 0">
-     <select id="st_move" onchange="moveStage('${id}')">${stageOrder.map(s=>`<option ${s===l.stage?'selected':''}>${s}</option>`).join('')}</select>
+   <div class="row" style="margin:8px 0">
+     <select id="st_move" onchange="moveStage('${id}')">${['new','contacted','replied','probing','demo_sent','negotiating','closed_won','closed_lost'].map(s=>`<option ${s===l.stage?'selected':''}>${s}</option>`).join('')}</select>
      <span class="pill p-${l.stage}">${stageLabel(l.stage)}</span></div>
    <div class="sm mut">${esc(l.niche||'')} · ${esc(l.city||'')} · ${esc(l.phone||'no phone')} · src:${esc(l.source)}</div>
+   ${l.phone&&waLink(l.phone)?`<a class="btn sm" style="display:inline-block;margin-top:8px" href="${waLink(l.phone)}" target="_blank">💬 WhatsApp</a>`:''}
    ${l.notes?`<div class="sm" style="margin:8px 0">📝 ${esc(l.notes)}</div>`:''}
    <label>Next action</label>
-   <div class="row"><input id="na_txt" value="${esc(l.next_action||'')}" placeholder="e.g. send custom demo">
-   <input id="na_when" type="datetime-local" value="${l.next_action_at?new Date(new Date(l.next_action_at)-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,16):''}" style="max-width:200px">
-   <button class="sm pri" onclick="saveNext('${id}')">↩</button></div>
+   <div class="row wrap"><input id="na_txt" value="${esc(l.next_action||'')}" placeholder="e.g. send custom demo">
+   <input id="na_when" type="datetime-local" value="${l.next_action_at?new Date(new Date(l.next_action_at)-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,16):''}" style="flex:1 1 160px">
+   <button class="sm pri" onclick="saveNext('${id}')" style="flex:0 0 auto">↩</button></div>
    <h2 style="margin-top:16px">Chat</h2>
-   <div class="chat">${msgs.map(m=>`<div class="msg ${m.direction}">${m.chunks?.length?m.chunks.map(c=>esc(c.text)).join('\n\n'):esc(m.body)}<span class="t">${m.direction==='out'?'→':'←'} ${fmt(m.created_at)} · ${m.status}</span></div>`).join('')||'<span class="mut sm">no messages yet</span>'}</div>
+   <div class="chat">${msgs.map(m=>`<div class="msg ${m.direction}">${m.chunks?.length?m.chunks.map(c=>esc(c.text)).join('\n\n'):esc(m.body)}<span class="t">${m.direction==='out'?'→':'←'} ${fmt(m.created_at)} · ${m.status}</span></div>`).join('')||empty('💬','No messages yet.')}</div>
    <label>Message (blank line = new bubble)</label>
    <textarea id="msg_box" placeholder="hi dr sharma :)&#10;&#10;kaise hain aap?"></textarea>
-   <div class="row" style="margin-top:6px">
+   <div class="row wrap" style="margin-top:6px">
      <button class="pri" onclick="sendChunks('${id}')">Send as chunks</button>
      <button onclick="logInbound('${id}')">Log received msg</button></div>
    <label>Send asset/demo</label>
-   <div class="row">
+   <div class="row wrap">
      <select id="demo_type"><option value="video">demo video</option><option value="custom_blog">sample blog</option><option value="placard_sample">placard sample</option><option value="carousel_sample">carousel</option><option value="custom_site">mock site</option></select>
      <input id="demo_url" placeholder="url (optional)">
-     <button class="sm pri" onclick="sendDemo('${id}')">Send</button></div>
+     <button class="sm pri" onclick="sendDemo('${id}')" style="flex:0 0 auto">Send</button></div>
    <label>Payment</label>
-   <div class="row"><input id="pay_amt" type="number" placeholder="amount ₹"><select id="pay_type"><option>trial</option><option>annual</option><option>placard</option><option>setup</option></select>
-   <button class="sm pri" onclick="logPayment('${id}')">Link sent</button></div>
-   ${pays.length?`<div class="sm">${pays.map(p=>`<span class="pill ${p.status==='paid'?'ok':'mut'}">${esc(p.type)} ${INR(p.amount)} ${esc(p.status)}</span>`).join(' ')}</div>`:''}
+   <div class="row wrap"><input id="pay_amt" type="number" inputmode="decimal" placeholder="amount ₹"><select id="pay_type"><option>trial</option><option>annual</option><option>placard</option><option>setup</option></select>
+   <button class="sm pri" onclick="logPayment('${id}')" style="flex:0 0 auto">Link sent</button></div>
+   ${pays.length?`<div class="sm" style="margin-top:8px">${pays.map(p=>`<span class="pill ${p.status==='paid'?'ok':'mut'}">${esc(p.type)} ${INR(p.amount)} ${esc(p.status)}</span>`).join(' ')}</div>`:''}
    ${demos.length?`<div class="sm mut" style="margin-top:8px">demos: ${demos.length} · latest ${esc(demos[0]?.type)}</div>`:''}
    ${out.length?`<div class="sm mut">last outreach: D${out[0].day_no} v${out[0].variant} ${esc(out[0].status)} ${fmt(out[0].created_at)}</div>`:''}
    <label>Notes (facts I learned)</label><textarea id="lead_notes" style="min-height:60px">${esc(l.notes||'')}</textarea>
-   <div class="row" style="margin-top:6px"><button class="sm pri" onclick="saveNotes('${id}')">Save notes</button>
-   <button class="sm danger" onclick="escalate('${id}')">Escalate to boss</button>
+   <div class="row wrap" style="margin-top:6px"><button class="sm pri" onclick="saveNotes('${id}')">Save notes</button>
+   <button class="sm danger" onclick="escalate('${id}','${esc(l.business||l.name)}')">Escalate to boss</button>
    <button class="sm" onclick="markLost('${id}')">Mark lost</button></div>`);
 }
 window.openLead=openLead;
-async function leadMap(){const ls=await sb('leads?select=*');window._leads=Object.fromEntries(ls.map(l=>[l.id,l]));return window._leads}
-const v=id=>document.getElementById(id)?.value;
+async function opsLeadMap(){const ls=await sb('leads?select=*');window._opsLeads=Object.fromEntries(ls.map(l=>[l.id,l]));return window._opsLeads}
+async function openCrmLead(id){
+  const l=window._crm?.['crm:'+id]|| (await sb(`crm_lead?select=${CRM_FIELDS}&id=eq.${id}`))[0]; if(!l)return;
+  window._crm['crm:'+id]=l;
+  const acts=await sb(`crm_activity?select=*&lead_id=eq.${id}&order=created_at.desc&limit=20`).catch(()=>[]);
+  const phone=l.mobile||l.phone;
+  openDrawer(`
+   <div class="grab"></div>
+   <div class="row"><h2>${esc(l.business||l.name)}${l.is_test?' 🧪':''}</h2><button class="sm" onclick="closeDrawer()">✕</button></div>
+   <div class="row" style="margin:8px 0">
+     <select id="crm_stage" onchange="moveCrmStage(${id})">${stageOrder.map(s=>`<option ${s===l.stage?'selected':''}>${s}</option>`).join('')}</select>
+     <span class="pill p-${l.stage}">${stageLabel(l.stage)}</span></div>
+   <div class="sm mut">${esc(l.contact_name||'')} · src:${esc(l.source||'')}${l.odoo_id?' · odoo#'+l.odoo_id:''}</div>
+   <div class="sm" style="margin:6px 0">
+     ${phone?`📞 <span style="user-select:all">${esc(phone)}</span>`:'no phone'}${l.email?' · ✉️ '+esc(l.email):''}</div>
+   ${phone&&waLink(phone)?`<a class="btn sm pri" style="display:inline-block" href="${waLink(phone)}" target="_blank">💬 Open WhatsApp</a>`:''}
+   <h2 style="margin-top:16px">Activity</h2>
+   <div class="chat" style="max-height:34vh">${acts.map(a=>`<div class="msg in"><b class="sm">${esc(a.kind)}</b> ${esc(a.detail||'')}<span class="t">${fmt(a.created_at)}</span></div>`).join('')||empty('📋','No activity yet.')}</div>
+   <label>Add note</label><textarea id="crm_note" style="min-height:54px" placeholder="called — asked for pricing"></textarea>
+   <div style="margin-top:8px"><button class="pri" onclick="addCrmNote(${id})">Save note</button></div>
+   <div class="row wrap" style="margin-top:14px">
+     <button class="sm danger" onclick="crmStageBtn(${id},'closed_lost')">Mark lost</button>
+     <button class="sm" onclick="crmStageBtn(${id},'closed_won')">✦ Mark won</button></div>`);
+}
+async function moveCrmStage(id){await crmStage(id,v('crm_stage'))}
+async function crmStageBtn(id,st){await crmStage(id,st);openCrmLead(id)}
+async function crmStage(id,st){
+  await sb(`crm_lead?id=eq.${id}`,{method:'PATCH',body:JSON.stringify({stage:st})});
+  await sb('crm_activity',{method:'POST',body:JSON.stringify({lead_id:id,kind:'stage',detail:'→ '+st})}).catch(()=>{});
+  toast('→ '+st);render();
+}
+async function addCrmNote(id){
+  const d=v('crm_note');if(!d)return toast('nothing to save');
+  await sb('crm_activity',{method:'POST',body:JSON.stringify({lead_id:id,kind:'note',detail:d})});
+  toast('note saved');openCrmLead(id);
+}
 async function moveStage(id){const st=v('st_move');await sb(`leads?id=eq.${id}`,{method:'PATCH',body:JSON.stringify({stage:st})});
-  await sb('events',{method:'POST',body:JSON.stringify({type:'stage_moved',lead_id:id,payload:{to:st}})});toast('→ '+st);render();openLeadStale(id)}
-async function saveNext(id){await sb(`leads?id=eq.${id}`,{method:'PATCH',body:JSON.stringify({next_action:v('na_txt'),next_action_at:v('na_when')?new Date(v('na_when')).toISOString():null})});toast('next action saved');openLeadStale(id)}
+  await sb('events',{method:'POST',body:JSON.stringify({type:'stage_moved',lead_id:id,payload:{to:st}})});toast('→ '+st);render()}
+async function saveNext(id){await sb(`leads?id=eq.${id}`,{method:'PATCH',body:JSON.stringify({next_action:v('na_txt'),next_action_at:v('na_when')?new Date(v('na_when')).toISOString():null})});toast('next action saved')}
 async function saveNotes(id){await sb(`leads?id=eq.${id}`,{method:'PATCH',body:JSON.stringify({notes:v('lead_notes')})});toast('notes saved')}
 async function markLost(id){await sb(`leads?id=eq.${id}`,{method:'PATCH',body:JSON.stringify({stage:'closed_lost'})});toast('marked lost');closeDrawer();render()}
 async function sendChunks(id){
   const parts=v('msg_box').split(/\n\s*\n/).map(s=>s.trim()).filter(Boolean);
   if(!parts.length)return toast('nothing to send');
-  const delay=[2,4,6].map((s,i)=>2+Math.floor(Math.random()*5));
-  const chunks=parts.map((t,i)=>({text:t,delay_s:delay[i]||3}));
+  const chunks=parts.map(t=>({text:t,delay_s:2+Math.floor(Math.random()*5)}));
   const msg={lead_id:id,direction:'out',kind:'text',chunks,status:cfg.bridge?'queued':'sent'};
   const [m]=await sb('messages',{method:'POST',body:JSON.stringify(msg)});
   if(cfg.bridge){try{await fetch(cfg.bridge,{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({type:'send_chunks',lead_id:id,messages:chunks,message_id:m.id})});toast('→ bridge')}catch(e){toast('bridge fail: saved as queued')}}
   else toast('saved (bridge not set)');
   await sb('events',{method:'POST',body:JSON.stringify({type:'msg_sent',lead_id:id,payload:{text:parts[0].slice(0,40)}})});
-  openLeadStale(id);
 }
 async function logInbound(id){const b=prompt('What did they say?');if(!b)return;
   await sb('messages',{method:'POST',body:JSON.stringify({lead_id:id,direction:'in',kind:'text',body:b,status:'received'})});
-  await sb(`leads?id=eq.${id}`,{method:'PATCH',body:JSON.stringify({stage:'replied',score:50})});
-  openLeadStale(id)}
+  await sb(`leads?id=eq.${id}`,{method:'PATCH',body:JSON.stringify({stage:'replied',score:50})});toast('logged')}
 async function sendDemo(id){const t=v('demo_type'),u=v('demo_url');
   await sb('demos',{method:'POST',body:JSON.stringify({lead_id:id,type:t,asset_url:u||null,title:t})});
   await sb('messages',{method:'POST',body:JSON.stringify({lead_id:id,direction:'out',kind:'text',body:`[${t}] ${u||'sent via WhatsApp'}`,status:'sent'})});
   await sb(`leads?id=eq.${id}`,{method:'PATCH',body:JSON.stringify({stage:'demo_sent',score:70})});
-  toast('demo sent');openLeadStale(id)}
+  toast('demo sent')}
 async function logPayment(id){const a=+v('pay_amt'),t=v('pay_type');if(!a)return;
   await sb('payments',{method:'POST',body:JSON.stringify({lead_id:id,amount:a,type:t,status:'link_sent'})});
-  toast('payment link logged');openLeadStale(id)}
-async function escalate(id){const r=prompt('Why escalate? (pricing_exception/custom_request/angry/payment/other)')||'other';
-  await sb('escalations',{method:'POST',body:JSON.stringify({lead_id:id,reason:'other',detail:r})});toast('boss alerted')}
-function snooze(id,h){/* set next_action +1h */}
+  toast('payment link logged')}
+async function escalate(id,name){const r=prompt('Why escalate? (pricing_exception/custom_request/angry/payment/other)')||'other';
+  await sb('escalations',{method:'POST',body:JSON.stringify({lead_id:id,reason:'other',detail:`${r} — ${name||''}`})});toast('boss alerted')}
+async function snooze(id,h){
+  await sb(`leads?id=eq.${id}`,{method:'PATCH',body:JSON.stringify({next_action_at:new Date(Date.now()+h*3600e3).toISOString()})});
+  toast('snoozed +'+h+'h');render()}
 window.snooze=snooze;
-function openLeadStale(id){leadMap().then(()=>openLead(id))}
 
-/* ============ INBOX ============ */
+/* ================= INBOX ================= */
 async function viewInbox(){
   const [msgs,ls]=await Promise.all([sb('messages?select=*&order=created_at.desc&limit=120'),sb('leads?select=id,name,business,phone')]);
+  window._opsLeads=Object.fromEntries(ls.map(l=>[l.id,l]));
   const byLead={};msgs.forEach(m=>{(byLead[m.lead_id]=byLead[m.lead_id]||[]).push(m)});
   return Object.keys(byLead).length?Object.entries(byLead).map(([id,ms])=>{
-    const l=ls.find(x=>x.id===id)||{};const last=ms[0];
-    return `<div class="card click" style="margin-bottom:8px" onclick="openLead('${id}')">
+    const l=ls.find(x=>x.id==id)||{};const last=ms[0];
+    return `<div class="card click" style="margin-bottom:8px" onclick="openLead('ops:${id}')">
       <div class="row"><b style="flex:2">${esc(l.business||l.name)}</b><span class="sm mut">${fmt(last.created_at)}</span></div>
       <div class="sm">${last.direction==='in'?'←':'→'} ${esc((last.chunks?.[0]?.text||last.body||'').slice(0,60))}</div></div>`}).join('')
-    :'<span class="mut">No conversations yet. Sales tab → open a lead → chat.</span>';
+    :empty('💬','No conversations yet.<br>Once outreach starts, replies land here.');
 }
 
-/* ============ DELIVERY ============ */
+/* ================= DELIVERY ================= */
 async function viewDelivery(){
   const [as,ts]=await Promise.all([
     sb('assets?select=*,clients(name)&order=created_at.desc&limit=100'),
     sb('tickets?select=*,clients(name)&order=created_at.desc&limit=50')]);
+  window._clients=window._clients||await sb('clients?select=id,name').catch(()=>[]);
   const cols=['draft','in_review','approved','published'];
   return `<div class="grid g2">
   <div class="card"><h2>Asset pipeline</h2>
-   <div class="row sm" style="margin-bottom:8px">
+   <div class="row wrap" style="margin-bottom:8px">
      <select id="as_type"><option>blog</option><option>google_post</option><option>carousel</option><option>infographic</option><option>video</option><option>placard</option><option>report</option></select>
      <input id="as_title" placeholder="title">
      <select id="as_client">${window._clients?.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')||'<option value="">—</option>'}</select>
-     <button class="sm pri" onclick="addAsset()">+</button></div>
+     <button class="sm pri" style="flex:0 0 auto" onclick="addAsset()">+</button></div>
    ${cols.map(c=>`<h3 class="sm mut" style="margin:10px 0 4px">${c} (${as.filter(a=>a.status===c).length})</h3>`+
-     as.filter(a=>a.status===c).map(a=>`<div class="row sm" style="margin:4px 0;padding:6px;background:var(--card2);border-radius:8px">
+     as.filter(a=>a.status===c).map(a=>`<div class="row sm" style="margin:4px 0;padding:8px;background:var(--card2);border-radius:8px">
        <div style="flex:2">[${esc(a.type)}] ${esc(a.title||'')} <span class="mut">· ${esc(a.clients?.name||'')}</span></div>
-       <select class="sm" style="max-width:110px" onchange="setAsset('${a.id}',this.value)">${cols.map(x=>`<option ${x===a.status?'selected':''}>${x}</option>`).join('')}</select></div>`).join('')).join('')}
+       <select class="sm" style="max-width:120px;min-height:34px" onchange="setAsset('${a.id}',this.value)">${cols.map(x=>`<option ${x===a.status?'selected':''}>${x}</option>`).join('')}</select></div>`).join('')).join('')
+     ||empty('📦','No assets yet — blogs and carousels land here.')}
   </div>
   <div class="card"><h2>Support tickets</h2>
-   ${ts.map(t=>`<div class="sm" style="margin:8px 0;padding:6px;background:var(--card2);border-radius:8px">
+   ${ts.map(t=>`<div class="sm" style="margin:8px 0;padding:8px;background:var(--card2);border-radius:8px">
      <b>${esc(t.title)}</b> <span class="pill ${t.status==='open'?'bad':t.status==='in_progress'?'warn':'ok'}">${esc(t.status)}</span><br>
      <span class="mut">${esc(t.clients?.name||'')} · ${fmt(t.created_at)}</span>
-     ${t.status!=='resolved'?`<button class="sm" style="float:right" onclick="resolveTicket('${t.id}')">resolve</button>`:''}</div>`).join('')||'<span class="mut sm">none 🎉</span>'}
+     ${t.status!=='resolved'?`<button class="sm" style="float:right" onclick="resolveTicket('${t.id}')">resolve</button>`:''}</div>`).join('')||empty('✅','No tickets 🎉')}
   </div></div>`;
 }
 async function addAsset(){await sb('assets',{method:'POST',body:JSON.stringify({type:v('as_type'),title:v('as_title'),client_id:v('as_client')||null})});toast('asset added');render()}
 async function setAsset(id,st){await sb(`assets?id=eq.${id}`,{method:'PATCH',body:JSON.stringify({status:st})});render()}
 async function resolveTicket(id){await sb(`tickets?id=eq.${id}`,{method:'PATCH',body:JSON.stringify({status:'resolved',resolved_at:new Date().toISOString()})});toast('resolved');render()}
 
-/* ============ ESCALATIONS ============ */
+/* ================= ESCALATIONS ================= */
 async function viewEsc(){
   const es=await sb('escalations?select=*,leads(name,business),clients(name)&status=open&order=created_at.desc');
   window._esc=es;
-  return es.length?es.map((e,i)=>`<div class="card esc" style="border-left-color:var(--bad);margin-bottom:8px">
+  return es.length?es.map((e,i)=>`<div class="card esc" style="margin-bottom:8px">
     <b>${esc(e.reason)}</b> · ${esc(e.clients?.name||e.leads?.business||e.leads?.name||'—')} <span class="sm mut">${fmt(e.created_at)}</span>
     <div class="sm" style="margin:4px 0">${esc(e.detail||'')}</div>
-    <div class="row"><input id="res_${i}" placeholder="resolution note"><button class="sm pri" onclick="resolveEsc(${i})">Handled</button></div></div>`).join('')
-   :'<span class="mut">Nothing needs you 🎉</span>';
+    <div class="row wrap"><input id="res_${i}" placeholder="resolution note"><button class="sm pri" style="flex:0 0 auto" onclick="resolveEsc(${i})">Handled</button></div></div>`).join('')
+   :empty('🚨','Nothing needs you 🎉');
 }
 async function resolveEsc(i){const e=window._esc[i];
   await sb(`escalations?id=eq.${e.id}`,{method:'PATCH',body:JSON.stringify({status:'handled',resolution:v(`res_${i}`),resolved_at:new Date().toISOString()})});
   toast('handled');render()}
 
-/* ============ VAULT ============ */
+/* ================= VAULT ================= */
 async function getPk(pass,salt){
   const km=await crypto.subtle.importKey('raw',new TextEncoder().encode(pass),'PBKDF2',false,['deriveKey']);
   return crypto.subtle.deriveKey({name:'PBKDF2',salt:new TextEncoder().encode(salt),iterations:250000,hash:'SHA-256'},km,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
@@ -311,81 +449,94 @@ async function decSecret(blob,pass){
   return new TextDecoder().decode(pt);
 }
 async function viewVault(){
-  const cs=await sb('clients?select=id,name&order=name.asc');window._clients=cs;
-  const vs=await sb('credentials?select=id,client_id,label,last_used_at,created_at&order=created_at.desc');
+  const cs=await sb('clients?select=id,name&order=name.asc').catch(()=>[]);window._clients=cs;
+  const vs=await sb('credentials?select=id,client_id,label,last_used_at,created_at&order=created_at.desc').catch(()=>{throw new Error('credentials locked — vault needs owner access')});
   return `<div class="grid g2"><div class="card"><h2>Add credential</h2>
     <label>Client</label><select id="vc_client">${cs.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select>
     <label>Label <span class="sm">(e.g. "WordPress admin")</span></label><input id="vc_label">
     <label>Secret</label><input id="vc_secret" type="password">
     <label>Encryption passphrase <span class="sm">(stays in your head, never stored)</span></label><input id="vc_pass" type="password">
-    <button class="pri" style="margin-top:10px" onclick="saveCred()">Encrypt & save</button>
-    <p class="sm mut" style="margin-top:8px">AES-GCM in your browser. DB only holds ciphertext; passphrase never leaves this device. No one — not even a leaked DB dump — can read these without your passphrase.</p></div>
+    <button class="pri" style="margin-top:10px;width:100%" onclick="saveCred()">Encrypt & save</button>
+    <p class="sm mut" style="margin-top:8px">AES-GCM in your browser. DB only holds ciphertext; passphrase never leaves this device.</p></div>
   <div class="card"><h2>Saved (${vs.length})</h2>
-   ${vs.map(x=>`<div class="row sm" style="margin:6px 0;padding:6px;background:var(--card2);border-radius:8px">
+   ${vs.map(x=>`<div class="row sm" style="margin:6px 0;padding:8px;background:var(--card2);border-radius:8px">
      <div style="flex:2">🔒 ${esc(x.label)} <span class="mut">· ${esc(cs.find(c=>c.id===x.client_id)?.name||'—')}</span></div>
-     <button class="sm" onclick="revealCred('${x.id}')">reveal</button></div>`).join('')}
+     <button class="sm" onclick="revealCred('${x.id}')">reveal</button></div>`).join('')||empty('🔐','No credentials saved yet.')}
    <div id="reveal_out" class="sm" style="margin-top:8px"></div></div></div>`;
 }
 async function saveCred(){
   if(!v('vc_secret')||!v('vc_pass'))return toast('need secret + passphrase');
   const blob=await encSecret(v('vc_secret'),v('vc_pass'));
   await sb('credentials',{method:'POST',body:JSON.stringify({client_id:v('vc_client'),label:v('vc_label'),secret_enc:blob})});
-  v('vc_secret')='';v('vc_pass')='';toast('locked in 🔐');render();
+  document.getElementById('vc_secret').value='';document.getElementById('vc_pass').value='';
+  toast('locked in 🔐');render();
 }
 async function revealCred(id){
   const pass=v('vc_pass')||prompt('Encryption passphrase to unlock:');if(!pass)return;
   try{const [c]=await sb(`credentials?id=eq.${id}&select=label,secret_enc`);
     const txt=await decSecret(c.secret_enc,pass);
     document.getElementById('reveal_out').innerHTML=`🔓 <b>${esc(c.label)}</b>: <code style="user-select:all">${esc(txt)}</code>`;
-    await sb(`credentials?id=eq.${id}`,{method:'PATCH',body:JSON.stringify({last_used_at:new Date().toISOString()})});
-    v('vc_pass')=pass;
   }catch(e){document.getElementById('reveal_out').innerHTML='<span class="bad">wrong passphrase</span>'}
 }
 
-/* ============ ANALYTICS ============ */
+/* ================= ANALYTICS ================= */
 async function viewAnalytics(){
-  const cs=await sb('clients?select=*&order=created_at.desc');window._clients=cs;
-  const pays=await sb('payments?select=*&status=eq.paid&order=created_at.desc');
-  const an=await sb('analytics_daily?select=*&order=day.desc&limit=120');
+  const cs=await sb('clients?select=*&order=created_at.desc').catch(()=>[]);
+  window._clients=cs;
+  const [pays,an]=await Promise.all([
+    sb('payments?select=*&status=eq.paid&order=created_at.desc').catch(()=>[]),
+    sb('analytics_daily?select=*&order=day.desc&limit=120').catch(()=>[])]);
   const totalRev=pays.reduce((s,p)=>s+ +p.amount,0);
   const active=cs.filter(c=>c.status==='active'||c.status==='onboarding');
   const mrr=active.reduce((s,c)=>s+(c.package==='annual'?3333:c.package==='trial'?15000:0),0);
   return `
-  <div class="grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:12px">
+  <div class="kpis">
     <div class="card kpi"><b class="ok">${INR(totalRev)}</b><span>collected</span></div>
     <div class="card kpi"><b>${INR(mrr)}</b><span>run-rate</span></div>
     <div class="card kpi"><b>${cs.length}</b><span>clients</span></div>
     <div class="card kpi"><b>${(an||[]).reduce((s,a)=>s+(a.blogs_published||0),0)}</b><span>blogs shipped</span></div>
   </div>
-  <div class="card"><h2>Clients</h2><table><tr><th>Client</th><th>Package</th><th>Status</th><th>Access code</th><th></th></tr>
+  <div class="card"><h2>Clients</h2>
+   ${cs.length?`<div class="tbl"><table><tr><th>Client</th><th>Package</th><th>Status</th><th>Access code</th><th></th></tr>
    ${cs.map(c=>`<tr><td>${esc(c.name)}</td><td>${esc(c.package)}</td><td>${esc(c.status)}</td><td class="sm mut" style="user-select:all">${esc(c.access_code||'—')}</td>
-   <td><button class="sm" onclick="genCode('${c.id}')">code</button></td></tr>`).join('')}</table>
+   <td style="white-space:nowrap"><button class="sm" onclick="genCode('${c.id}')">code</button>
+   <button class="sm pri" onclick="sharePortal('${esc(c.name)}','${esc(c.access_code||'')}')">📋</button></td></tr>`).join('')}</table></div>`:empty('🤝','No clients yet — add your first after the first close.')}
    <button class="pri" style="margin-top:10px" onclick="newClient()">+ Add client</button></div>
   <div class="card" style="margin-top:12px"><h2>Delivery log (daily)</h2>
-   <table><tr><th>Day</th><th>Client</th><th>Reviews</th><th>Blogs</th><th>Posts</th><th>Assets</th><th>Leads</th></tr>
-   ${(an||[]).slice(0,25).map(a=>`<tr><td>${a.day}</td><td>${esc(cs.find(c=>c.id===a.client_id)?.name||'')}</td><td>${a.reviews_replied}/${a.reviews_received}</td><td>${a.blogs_published}</td><td>${a.posts_published}</td><td>${a.assets_delivered}</td><td>${a.leads_captured??''}</td></tr>`).join('')||'<tr><td colspan=7 class="mut">no data yet</td></tr>'}</table></div>`;
+   <div class="tbl"><table><tr><th>Day</th><th>Client</th><th>Reviews</th><th>Blogs</th><th>Posts</th><th>Assets</th></tr>
+   ${(an||[]).slice(0,25).map(a=>`<tr><td>${a.day}</td><td>${esc(cs.find(c=>c.id===a.client_id)?.name||'')}</td><td>${a.reviews_replied}/${a.reviews_received}</td><td>${a.blogs_published}</td><td>${a.posts_published}</td><td>${a.assets_delivered}</td></tr>`).join('')||`<tr><td colspan=6>${empty('📈','No data yet — reports start after setup week.')}</td></tr>`}</table></div></div>`;
 }
-function newClient(){openDrawer(`<h2>New client</h2>
+function newClient(){openDrawer(`<div class="grab"></div><h2>New client</h2>
   <label>Name</label><input id="nc_name"><label>Business</label><input id="nc_biz">
-  <label>Phone</label><input id="nc_ph"><label>Email</label><input id="nc_em">
+  <label>Phone</label><input id="nc_ph" inputmode="tel"><label>Email</label><input id="nc_em">
   <label>Package</label><select id="nc_pkg"><option value="trial">trial ₹15,000</option><option value="annual">annual ₹40,000</option></select>
-  <button class="pri" style="margin-top:12px" onclick="saveClient()">Create</button>`)}
+  <button class="pri" style="margin-top:12px;width:100%" onclick="saveClient()">Create client</button>`)}
 async function saveClient(){
   const [c]=await sb('clients',{method:'POST',body:JSON.stringify({name:v('nc_name'),business:v('nc_biz'),phone:v('nc_ph'),email:v('nc_em'),package:v('nc_pkg'),access_code:Math.random().toString(36).slice(2,10)})});
-  toast('client added — share access code');closeDrawer();render();
+  toast('client added');closeDrawer();render();
 }
 async function genCode(id){const code=Math.random().toString(36).slice(2,10);
-  await sb(`clients?id=eq.${id}`,{method:'PATCH',body:JSON.stringify({access_code:code})});toast('code: '+code);render()}
+  await sb(`clients?id=eq.${id}`,{method:'PATCH',body:JSON.stringify({access_code:code})});toast('new code: '+code);render()}
+function sharePortal(name,code){
+  const msg=`Hi ${name}! 🚀 Your growth dashboard is ready:\n${location.origin}/?#/portal\nAccess code: ${code}\n\n— Team LGE`;
+  const done=()=>toast('copied — paste in WhatsApp');
+  if(navigator.clipboard?.writeText) navigator.clipboard.writeText(msg).then(done,()=>prompt('Copy this message:',msg));
+  else prompt('Copy this message:',msg);
+}
+window.sharePortal=sharePortal;
 
-/* ============ CLIENT PORTAL ============ */
+/* ================= CLIENT PORTAL ================= */
 async function renderPortal(){
   document.getElementById('title').textContent='Client Portal';
+  document.getElementById('topnav').innerHTML='';document.getElementById('tabs').innerHTML='';
   const app=document.getElementById('app');
-  document.getElementById('tabs').innerHTML=`<button style="flex:1" onclick="location.hash=''">← Business login</button>`;
   if(!window._pAccess){
-    app.innerHTML=`<div class="card" style="max-width:420px;margin:60px auto;text-align:center">
-     <h2>Your growth dashboard</h2><p class="mut sm" style="margin:8px 0">Enter the access code your manager shared</p>
-     <input id="portal_code" placeholder="access code"><button class="pri" style="margin-top:10px;width:100%" onclick="portalLogin()">Login</button></div>`;
+    app.innerHTML=`<div style="min-height:calc(100dvh - var(--header-h) - 30px);display:flex;align-items:center;justify-content:center">
+     <div class="card" style="max-width:400px;width:100%;text-align:center;padding:26px 20px">
+     <div style="font-size:2rem">🚀</div>
+     <h2 style="margin:8px 0 4px">Your growth dashboard</h2><p class="mut sm">Enter the access code your manager shared</p>
+     <input id="portal_code" placeholder="access code" style="margin-top:14px;text-align:center;letter-spacing:.1em;text-transform:lowercase">
+     <button class="pri" style="margin-top:12px;width:100%" onclick="portalLogin()">Login</button></div></div>`;
     return;
   }
   const [an,as,ts]=await Promise.all([
@@ -396,20 +547,20 @@ async function renderPortal(){
   const blogs=(an||[]).reduce((s,a)=>s+ +(a.blogs_published||0),0);
   const maxT=Math.max(...(an||[]).map(a=>+(a.traffic_users||0)),1);
   app.innerHTML=`
-  <div class="grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:12px">
+  <div class="kpis">
     <div class="card kpi"><b>${rev}</b><span>reviews in</span></div>
     <div class="card kpi"><b class="ok">${rep?Math.round(rep/rev*100):0}%</b><span>reply rate</span></div>
     <div class="card kpi"><b>${blogs}</b><span>blogs published</span></div>
   </div>
   <div class="card"><h2>Website traffic (daily users)</h2>
-   ${(an||[]).slice(0,14).reverse().map(a=>`<div class="row sm" style="margin:3px 0"><span style="width:70px" class="mut">${a.day.slice(5)}</span><div class="bar" style="flex:1"><i style="width:${Math.round((a.traffic_users||0)/maxT*100)}%"></i></div><span style="width:40px;text-align:right">${a.traffic_users??'–'}</span></div>`).join('')||'<span class="mut sm">No data yet — first report lands after setup week.</span>'}</div>
+   ${(an||[]).slice(0,14).reverse().map(a=>`<div class="row sm" style="margin:3px 0"><span style="width:70px" class="mut">${a.day.slice(5)}</span><div class="bar" style="flex:1"><i style="width:${Math.round((a.traffic_users||0)/maxT*100)}%"></i></div><span style="width:40px;text-align:right">${a.traffic_users??'–'}</span></div>`).join('')||empty('📈','No data yet — first report lands after setup week.')}</div>
   <div class="card" style="margin-top:12px"><h2>Delivered this month</h2>
    ${(as||[]).map(a=>`<div class="sm" style="margin:6px 0">📦 [${esc(a.type)}] <b>${esc(a.title||'')}</b> <span class="pill ${a.status==='published'?'ok':'warn'}">${esc(a.status)}</span>
-   ${a.file_url?`<a href="${esc(a.file_url)}" target="_blank">open</a>`:''}</div>`).join('')||'<span class="mut sm">Assets appear here as they ship.</span>'}</div>
+   ${a.file_url?`<a href="${esc(a.file_url)}" target="_blank">open</a>`:''}</div>`).join('')||empty('📦','Assets appear here as they ship.')}</div>
   <div class="card" style="margin-top:12px"><h2>Support</h2>
    ${(ts||[]).filter(t=>t.status!=='resolved').map(t=>`<div class="sm">🎫 ${esc(t.title)} <span class="pill ${t.status}">${esc(t.status)}</span></div>`).join('')}
    <label>Raise a ticket</label><input id="t_title" placeholder="Subject"><textarea id="t_desc" placeholder="Details"></textarea>
-   <button class="pri" style="margin-top:8px" onclick="portalTicket()">Submit</button></div>
+   <button class="pri" style="margin-top:8px;width:100%" onclick="portalTicket()">Submit ticket</button></div>
   <p class="sm mut" style="text-align:center;margin:16px 0">Powered by your growth team 🚀</p>`;
 }
 async function portalLogin(){const c=v('portal_code');
@@ -417,46 +568,67 @@ async function portalLogin(){const c=v('portal_code');
     window._pAccess=c;renderPortal()}catch(e){toast('invalid code')}}
 async function portalTicket(){try{await rpc('client_create_ticket',{p_access:window._pAccess,p_title:v('t_title'),p_desc:v('t_desc')});toast('ticket filed — team notified');renderPortal()}catch(e){toast(e.message)}}
 
-/* ============ SETTINGS ============ */
-function viewSettings(){return `<div class="card" style="max-width:520px">
-  <h2>Connect Supabase</h2>
-  <label>Project URL</label><input id="s_url" value="${cfg.url}" placeholder="https://xxxx.supabase.co">
-  <label>Anon (public) key</label><input id="s_key" value="${cfg.key}" type="password">
-  <label>Claude bridge URL <span class="sm">(optional — n8n webhook that sends messages via Evolution API)</span></label>
-  <input id="s_bridge" value="${cfg.bridge}" placeholder="https://your-server:5678/webhook/...">
-  <button class="pri" style="margin-top:12px;width:100%" onclick="saveCfg()">Save & test connection</button>
-  <div id="test_out" class="sm" style="margin-top:8px"></div>
-  <p class="sm mut" style="margin-top:12px">Client portal: share <code>?#/portal</code> URL with clients. Per-client access code in Analytics tab.</p></div>`;
+/* ================= CONNECTION (settings) ================= */
+function viewConn(){
+  return `<div class="card" style="max-width:560px">
+  <h2>Connection</h2>
+  <div class="statrow"><span class="conn-dot ok"></span><div style="flex:1;min-width:0">
+    <div class="sm"><b>API</b> <span class="mut">${esc(cfg.url)}</span></div>
+    <div class="sm mut" id="conn_stat">checking…</div></div></div>
+  <button class="pri" onclick="testConn()" style="width:100%">Test connection</button>
+  <p class="sm mut" style="margin-top:10px">Pre-configured for this deployment — nothing to set up. Client portal: share <code>${esc(location.origin)}/?#/portal</code> with clients; per-client access codes live in the Analytics tab (📋 copies a ready WhatsApp message).</p>
+  <details style="margin-top:12px"><summary class="mut sm" style="cursor:pointer">Advanced — override connection</summary>
+    <label>API base URL</label><input id="s_url" value="${esc(cfg.url)}">
+    <label>Anon key <span class="sm">(PostgREST ignores this; Supabase needs it)</span></label><input id="s_key" value="${esc(cfg.key)}">
+    <label>Claude bridge URL <span class="sm">(optional — n8n webhook that sends messages via Evolution API)</span></label>
+    <input id="s_bridge" value="${esc(cfg.bridge)}" placeholder="https://…/webhook/…">
+    <button class="sm" style="margin-top:10px;width:100%" onclick="saveCfg()">Save overrides</button>
+  </details>
+  <p class="sm mut" style="margin-top:10px">${VER}</p></div>`;
+}
+async function testConn(){
+  const out=document.getElementById('conn_stat');out.textContent='testing…';out.className='sm mut';
+  try{const ms=await pingAPI();setConn('ok');out.innerHTML=`<span class="ok">✓ connected · ${ms} ms</span>`}
+  catch(e){setConn('bad');out.innerHTML=`<span class="bad">✗ ${esc(e.message)}</span>`}
 }
 async function saveCfg(){
-  cfg.set('sb_url',v('s_url'));cfg.set('sb_key',v('s_key'));cfg.set('bridge_url',v('s_bridge')||'');
-  document.getElementById('test_out').textContent='testing…';
-  try{await sb('leads?select=id&limit=1');document.getElementById('test_out').innerHTML='<span class="ok">✓ connected</span>';renderTabs();render()}
-  catch(e){document.getElementById('test_out').innerHTML='<span class="bad">✗ '+esc(e.message)+'</span>'}
+  cfg.set('sb_url',v('s_url').trim());cfg.set('sb_key',v('s_key').trim());cfg.set('bridge_url',v('s_bridge').trim());
+  toast('saved');renderNav();render();
 }
 
-/* ============ drawer + render loop ============ */
+/* ================= more menu (mobile) ================= */
+function viewMore(){
+  return `<div class="moremenu">
+  ${NAV.slice(3).map(([id,i,l])=>`<a onclick="go('${id}')"><span class="mi">${i}</span> ${l}</a>`).join('')}
+  </div><p class="sm mut" style="text-align:center;margin-top:20px">${VER}</p>`;
+}
+
+/* ================= drawer + render loop ================= */
 function openDrawer(html){document.getElementById('drawer').innerHTML=html;document.getElementById('drawer').classList.add('open');document.getElementById('backdrop').style.display='block'}
 function closeDrawer(){document.getElementById('drawer').classList.remove('open');document.getElementById('backdrop').style.display='none'}
 window.closeDrawer=closeDrawer;
 async function render(){
-  document.getElementById('title').textContent=tab==='sales'?' 💰 Sales':tab==='PORTAL'?'Client Portal':'GTM Control Tower';
-  renderTabs();
+  const labels={today:'Today',sales:'Sales',inbox:'Inbox',delivery:'Delivery',esc:'Escalations',vault:'Vault',analytics:'Analytics',conn:'Connection',more:'More',PORTAL:'Client Portal'};
+  document.getElementById('title').textContent=labels[tab]||'GTM Control Tower';
+  renderNav();
   const app=document.getElementById('app');
   if(tab==='PORTAL')return renderPortal();
   try{
-    app.innerHTML='<p class="mut">loading…</p>';
-    app.innerHTML=await({today:viewToday,sales:viewSales,inbox:viewInbox,delivery:viewDelivery,esc:viewEsc,vault:viewVault,analytics:viewAnalytics,settings:viewSettings}[tab]||viewToday)();
+    app.innerHTML='<p class="mut" style="padding:20px 0">loading…</p>';
+    app.innerHTML=await({today:viewToday,sales:viewSales,inbox:viewInbox,delivery:viewDelivery,esc:viewEsc,vault:viewVault,analytics:viewAnalytics,conn:viewConn,more:viewMore}[tab]||viewToday)();
+    if(tab!=='conn')autoPing();
   }catch(e){
+    setConn('bad');
     app.innerHTML=`<div class="card"><h2>⚠️ ${esc(e.message)}</h2>
-     <p class="sm mut" style="margin-top:8px">Setup Supabase first: run <code>supabase-schema.sql</code> in Supabase ▸ SQL Editor, then open the ⚙️ tab and paste your project URL + anon key.</p>
-     <button class="pri" style="margin-top:10px" onclick="go('settings')">⚙️ Settings</button></div>`;
-    if(!cfg.url)go('settings');
+     <p class="sm mut" style="margin-top:8px">Couldn't reach the API. Check your connection or the API status.</p>
+     <div class="row wrap" style="margin-top:12px">
+       <button class="pri" onclick="render()">Retry</button>
+       <button onclick="go('conn')">Connection details</button></div></div>`;
   }
 }
 window.addEventListener('hashchange',()=>{if(location.hash.includes('portal')){tab='PORTAL';render()}else if(tab==='PORTAL'){tab='today';render()}});
 if(location.hash.includes('portal')){tab='PORTAL'}
-render();
+renderNav();render();
 </script>
 </body>
 </html>

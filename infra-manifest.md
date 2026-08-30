@@ -33,3 +33,6 @@ apply schema-pg.sql (43 stmts + test-lead seed) → PostgREST :3100 probe → da
 | 2026-08-29 | Coolify | app lge-dashboard-staging (branch staging) | b3ajomufklzssswfftpxamy0 | http://pilot-staging.anagataitsolutions.in | delete app |
 | 2026-08-29 | Coolify | app lge-dashboard-prod (branch main) | smp37boufquxlqhyn9hke97t | http://pilot.anagataitsolutions.in (idle til PR#2) | delete app |
 | 2026-08-29 | GitHub | PRs #1,#3 merged to staging; #2 (staging->main) awaiting owner | — | SOP flow | close PR |
+| 2026-08-30 | VPS | Traefik dynamic config `/data/coolify/proxy/dynamic/lge-api.yml` (file in repo: infra/traefik/lge-api.yml) — HTTPS `/api` route pilot + pilot-staging → lge-rest :3200 | — | dashboard API | delete file |
+| 2026-08-30 | DB | `crm/harden-api.sql` applied: crm_activity table created, lge_rest authenticator role, lge_anon revoked on clients+credentials (RPCs are SECURITY DEFINER), crm DML grants, updated_at trigger | — | — | — |
+| 2026-08-30 | VPS | lge-rest relaunched least-privilege (connects as lge_rest, anon role lge_anon, host net, :3200) — verified: crm_lead 200, clients/credentials 401, rpc 200 | — | — | — |

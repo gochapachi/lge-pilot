@@ -1,0 +1,39 @@
+# LGE pilot — PostgREST HTTPS route (dynamic Traefik config)
+# Applied at: /data/coolify/proxy/dynamic/lge-api.yml  (host) = /traefik/dynamic/ (container)
+# Serves the dashboard's same-origin API: https://pilot{,-staging}.anagataitsolutions.in/api/*
+# Backend: lge-rest (PostgREST, host network) on 127.0.0.1:3200
+# CREATE-ONLY contract: adds a new file, touches no existing router/service.
+http:
+  routers:
+    lge-api-sec:
+      rule: "(Host(`pilot.anagataitsolutions.in`) || Host(`pilot-staging.anagataitsolutions.in`)) && PathPrefix(`/api`)"
+      entrypoints:
+        - https
+      middlewares:
+        - lge-api-strip
+      service: lge-api
+      tls:
+        certResolver: letsencrypt
+    lge-api-plain:
+      rule: "(Host(`pilot.anagataitsolutions.in`) || Host(`pilot-staging.anagataitsolutions.in`)) && PathPrefix(`/api`)"
+      entrypoints:
+        - http
+      middlewares:
+        - lge-api-redirect
+        - lge-api-strip
+      service: lge-api
+  middlewares:
+    lge-api-strip:
+      stripPrefix:
+        prefixes:
+          - /api
+    lge-api-redirect:
+      redirectScheme:
+        scheme: https
+        port: 443
+        permanent: true
+  services:
+    lge-api:
+      loadBalancer:
+        servers:
+          - url: "http://213.199.62.248:3200"
