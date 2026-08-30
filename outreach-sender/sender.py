@@ -1,64 +1,47 @@
 #!/usr/bin/env python3
 """
-WA Outreach Sender — Odoo leads -> WhatsApp via Evolution API.
+WA Outreach Sender v2 — OUR Postgres (crm_lead) -> WhatsApp via Evolution API.
+Zero Odoo dependency.
 
-  python3 sender.py --dry-run            # show EXACT messages for next N leads, send nothing
-  python3 sender.py --test +919XXXXXXXXX # send one preview to your own number, no CRM writes
-  python3 sender.py --limit 5            # LIVE: send to max 5 leads, log to Odoo chatter
-  python3 sender.py --limit 40           # full daily batch
+  python3 sender.py                 # dry-run: shows exactly what would go out, sends nothing
+  python3 sender.py --test          # send ONE preview to owner WhatsApp (917705871046), no CRM writes
+  python3 sender.py --send --limit 5   # LIVE batch, capped
+  python3 sender.py --send --limit 40  # full daily batch
 
-Safety rails: connection-state check, daily cap, random delays between sends,
-dedupe via sent_state.csv (never sends twice), chatter note + tag on every lead sent.
+Safety rails:
+  - dry-run is the default; --send is explicit
+  - daily cap (outreach.daily_cap, default 15) enforced from outreach_log
+  - permanent dedupe: a lead with any D1 outreach_log row is never re-sent
+  - random 45-90s delay between sends
+  - steering-aware: crm_lead.steering is stored in the log meta for the AI layer
 """
-import argparse, csv, json, os, random, re, sys, time
+import argparse, json, os, random, re, sys, time
 import urllib.request, urllib.error
-import xmlrpc.client
-from datetime import datetime, date
+from datetime import date, datetime
+
+import pg8000.native
 
 BASE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(BASE)
 CONFIG_PATH = os.path.join(BASE, "config.json")
-STATE_PATH = os.path.join(BASE, "sent_state.csv")
-LOG_PATH = os.path.join(BASE, "send_log.csv")
+CREDS_PATH = os.path.join(ROOT, "secrets", "credentials.json")
+
+DB = dict(user="root", host="213.199.62.248", port=5434, database="lge", password="Itachi933641")
 
 
-def cfg():
-    with open(CONFIG_PATH) as f:
-        return json.load(f)
-
-
-def check_placeholders(c):
-    blob = json.dumps(c.get("evolution", {})) + json.dumps(c.get("odoo", {}))
-    if "PASTE_" in blob:
-        sys.exit("❌ config.json still has PASTE_ placeholders — fill every field first.")
-
-
-def append_row(path, header, row):
-    new = not os.path.exists(path)
-    with open(path, "a", newline="") as f:
-        w = csv.writer(f)
-        if new:
-            w.writerow(header)
-        w.writerow(row)
-
-
-def all_sent_keys(path):
-    """{(model, lead_id)} ever sent — permanent dedupe."""
-    if not os.path.exists(path):
-        return set()
-    with open(path, newline="") as f:
-        return {(r["model"], r["lead_id"]) for r in csv.DictReader(f)}
-
-
-def sent_today_count(path):
-    if not os.path.exists(path):
-        return 0
-    today = date.today().isoformat()
-    with open(path, newline="") as f:
-        return sum(1 for r in csv.DictReader(f) if r.get("date") == today)
+def load_config():
+    c = json.load(open(CONFIG_PATH))
+    creds = json.load(open(CREDS_PATH))
+    evo = creds.get("evolution", {})
+    c.setdefault("evolution", {})
+    for k in ("base_url", "api_key", "instance"):
+        c["evolution"].setdefault(k, evo.get(k, ""))
+    if "PASTE_" in json.dumps(c["evolution"]):
+        sys.exit("evolution creds missing in secrets/credentials.json")
+    return c
 
 
 def norm_phone(raw):
-    """-> 91XXXXXXXXXX or None. Indian-first heuristic."""
     if not raw:
         return None
     d = re.sub(r"\D", "", str(raw))
@@ -75,8 +58,6 @@ def norm_phone(raw):
     return None
 
 
-# ---------------- Evolution API ----------------
-
 def evo_state(c):
     e = c["evolution"]
     url = f"{e['base_url'].rstrip('/')}/instance/connectionState/{e['instance']}"
@@ -85,16 +66,17 @@ def evo_state(c):
         with urllib.request.urlopen(req, timeout=30) as r:
             body = r.read().decode() or "{}"
     except urllib.error.HTTPError as ex:
-        return f"❓ HTTP {ex.code} (check base_url/apikey/instance)"
-    return "open ✅" if '"open"' in body.lower() else body[:200]
+        return f"HTTP {ex.code}"
+    return "open OK" if '"open"' in body.lower() else body[:200]
 
 
 def evo_send(c, number, text):
     e = c["evolution"]
     url = f"{e['base_url'].rstrip('/')}/message/sendText/{e['instance']}"
     h = {"Content-Type": "application/json", "apikey": e["api_key"]}
-    for body in ({"number": number, "textMessage": {"text": text}},   # Evolution v2
-                 {"number": number, "text": text}):                    # older builds
+    last = "?"
+    for body in ({"number": number, "textMessage": {"text": text}},  # Evolution v2
+                 {"number": number, "text": text}):                   # legacy builds
         try:
             req = urllib.request.Request(url, data=json.dumps(body).encode(),
                                          headers=h, method="POST")
@@ -107,177 +89,116 @@ def evo_send(c, number, text):
                 detail = ""
             last = f"HTTP {ex.code} {detail}"
             if ex.code in (400, 404, 422):
-                continue  # try legacy payload format
+                continue
         except Exception as ex:
             last = str(ex)
     return False, last
 
 
-# ---------------- Odoo ----------------
+# ---------------- lead sourcing (our DB) ----------------
 
-def odoo_connect(c):
-    o = c["odoo"]
-    url = o["url"].rstrip("/")
-    common = xmlrpc.client.ServerProxy(f"{url}/xmlrpc/2/common", allow_none=True)
-    uid = common.authenticate(o["db"], o["email"], o["api_key"], {})
-    if not uid:
-        sys.exit("❌ Odoo auth failed — check url/db/email/api_key (API key: Settings ▸ Users ▸ API Keys)")
-    models = xmlrpc.client.ServerProxy(f"{url}/xmlrpc/2/object", allow_none=True)
-    return (o["db"], uid, o["api_key"], models)
-
-
-def kw(o, model, method, args, kwargs=None):
-    db, uid, key, models = o
-    return models.execute_kw(db, uid, key, model, method, args, kwargs or {})
-
-
-def fetch_leads(o, c, limit):
-    want = ["name", "contact_name", "partner_name", "phone", "mobile",
-            "email_from", "description"]
-    odcfg = c["odoo"]
-    fields = want
-    try:
-        have = kw(o, odcfg["model"], "fields_get", [], {"attributes": []})
-        picked = [f for f in want if f in have]
-        if len(picked) >= 4:
-            fields = picked
-        if "x_wa_line1" in have:  # optional custom field for per-lead line 1
-            fields.append("x_wa_line1")
-    except Exception:
-        pass
-    return kw(o, odcfg["model"], "search_read", [odcfg.get("domain", [])],
-              {"fields": fields, "limit": limit, "order": odcfg.get("order", "id desc")})
+def due_leads(con, limit):
+    """autopilot on, still 'new', reachable, never D1-messaged. Steering-aware."""
+    rows = con.run(
+        """select l.id, l.name, coalesce(l.business, l.name) as business,
+                  coalesce(l.contact_name, '') as contact_name,
+                  l.phone, l.mobile, l.steering, l.odoo_id
+           from crm_lead l
+           where l.autopilot = true
+             and l.stage = 'new'
+             and coalesce(l.phone, l.mobile) is not null
+             and not exists (select 1 from crm_activity a
+                             where a.lead_id = l.id and a.kind = 'wa_msg')
+           order by l.is_test desc, l.id
+           limit :lim""", lim=limit)
+    return [dict(id=r[0], name=r[1], business=r[2], contact_name=r[3],
+                 phone=r[4], mobile=r[5], steering=r[6], odoo_id=r[7]) for r in rows]
 
 
-def mark_sent(o, c, rec_id, number):
-    ts = datetime.now().strftime("%d-%b %H:%M")
-    model = c["odoo"]["model"]
-    try:
-        kw(o, model, "message_post", [[rec_id]],
-           {"body": f"📱 WA outreach sent {ts} → +{number} (auto)",
-            "message_type": "comment", "subtype_xmlid": "mail.mt_note"})
-    except Exception as e:
-        print(f"  ⚠️ chatter note failed: {e}")
-    try:
-        tags = kw(o, "crm.tag", "search_read", [["name", "=", "WA-Outreach"]], {"fields": ["id"]})
-        tid = tags[0]["id"] if tags else kw(o, "crm.tag", "create", [{"name": "WA-Outreach"}])
-        kw(o, model, "write", [[rec_id], {"tag_ids": [(4, tid)]}])
-    except Exception as e:
-        print(f"  ⚠️ tag failed: {e}")
+def sent_today(con):
+    n = con.run("select count(*) from crm_activity where kind='wa_msg' and created_at::date = current_date")[0][0]
+    return n
 
-
-# ---------------- template ----------------
 
 def render(c, rec):
     out = c["outreach"]
-    biz = (rec.get("partner_name") or rec.get("name") or "aapke business").strip()
+    biz = (rec.get("business") or rec.get("name") or "aapke business").strip()
     person = (rec.get("contact_name") or "").strip()
     name = person.split()[0] if person else (biz.split()[0] if biz else "ji")
-    num_raw = rec.get("mobile") or rec.get("phone")
-    num = norm_phone(num_raw)
-    line1 = ""
-    overrides = out.get("line1_overrides") or {}
-    for key in (num_raw, num, rec.get("email_from")):
-        if key and str(key) in overrides:
-            line1 = overrides[str(key)].strip()
-            break
-    if not line1 and rec.get("x_wa_line1"):
-        line1 = str(rec["x_wa_line1"]).strip()
-    if not line1:
-        line1 = out.get("default_line1", "").strip()
-    templates = out.get("message_templates") or [out["message_template"]]
+    num = norm_phone(rec.get("mobile") or rec.get("phone"))
+    line1 = out.get("default_line1", "").strip()
+    if rec.get("steering"):
+        # steering hint reserved for the AI layer; template stays standard in v2
+        line1 = line1
+    templates = out.get("message_templates") or []
     text = random.choice(templates).format(
         business=biz, name=name, line1=line1,
         demo_link=out.get("demo_link", ""), my_name=out.get("my_name", ""))
     return num, text
 
 
+def log_sent(con, lead_id, variant, status, steering, odoo_id):
+    if status == "sent":
+        con.run("insert into crm_activity (lead_id, kind, detail, meta)"
+                " values (:lid, 'wa_msg', :d, :m)",
+                lid=lead_id, d="D1 intro sent (variant %s)" % variant,
+                m=json.dumps({"variant": variant, "steering": steering or None,
+                              "odoo_id": odoo_id}))
+        con.run("""update crm_lead set stage='contacted',
+                     next_action='D1 sent — check for reply tomorrow',
+                     next_action_at = now() + interval '1 day',
+                     ai_note = 'Sent D1 intro on WhatsApp. Waiting for reply — will follow up in 24h.'
+                     where id = :lid""", lid=lead_id)
+
+
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--dry-run", action="store_true", help="print messages, send nothing")
+    p.add_argument("--send", action="store_true", help="LIVE: actually send (default is dry-run)")
+    p.add_argument("--test", action="store_true", help="send one preview to owner WhatsApp")
     p.add_argument("--limit", type=int, default=10, help="max leads this run")
-    p.add_argument("--test", metavar="NUMBER", help="send 1 preview to your own number")
     a = p.parse_args()
 
-    c = cfg()
-    check_placeholders(c)
-    outcfg = c["outreach"]
+    c = load_config()
+    cap = c["outreach"].get("daily_cap", 15)
+    con = pg8000.native.Connection(**DB)
 
-    # ---- test mode: no CRM touched
+    print(f"Evolution instance state: {evo_state(c)}")
+    already = sent_today(con)
+    print(f"sent today (all channels): {already}/{cap}")
+
     if a.test:
-        to = norm_phone(a.test) or sys.exit(f"❌ can't normalize {a.test} to E.164")
-        print(f"Evolution state: {evo_state(c)}")
-        num, text = render(c, {"partner_name": "Sharma Dental Care",
-                               "contact_name": "Dr. Sharma", "name": "Demo lead"})
-        ok, detail = evo_send(c, to, text)
-        print(("✅ " if ok else "❌ ") + detail)
-        print("--- message preview ---\n" + text)
+        num = c["outreach"].get("owner_number") or "917705871046"
+        sample = {"name": "Sanjeev", "business": "Dental Wellness",
+                  "contact_name": "Sanjeev", "steering": None}
+        _, text = render(c, sample)
+        ok, info = evo_send(c, num, text)
+        print(f"TEST -> {num}: {info}\n---\n{text}")
         return
 
-    o = odoo_connect(c)
-    print(f"✅ Odoo connected as {c['odoo']['email']} ({c['odoo']['model']})")
-    print(f"Evolution state: {evo_state(c)}")
-
-    cap_left = outcfg.get("daily_cap", 40) - sent_today_count(STATE_PATH)
-    eff = max(0, min(a.limit, cap_left))
-    if eff == 0:
-        sys.exit(f"🛑 Daily cap reached ({outcfg.get('daily_cap', 40)}) — nothing more today. Good discipline.")
-
-    sent_keys = all_sent_keys(STATE_PATH)
-    model_name = c["odoo"]["model"]
-    recs = [r for r in fetch_leads(o, c, (eff + 20) * 3)
-            if (model_name, str(r["id"])) not in sent_keys][:eff + 20]
-
-    if a.dry_run:
-        print(f"\n===== DRY RUN — next {eff} messages (nothing sent) =====")
-        shown = 0
-        for r in recs:
-            num, text = render(c, r)
-            label = (r.get("partner_name") or r.get("name") or r["id"])
-            print(f"\n──── {label} | id={r['id']} | to={'+' + num if num else '❌ NO VALID NUMBER'}")
-            print(text)
-            shown += 1
-            if shown >= eff:
-                break
-        print("\n===== end dry run. Happy? →  python3 sender.py --test <your number>")
+    leads = due_leads(con, limit=min(a.limit, max(cap - already, 0)))
+    print(f"due leads pulled: {len(leads)} (limit {a.limit}, remaining cap {max(cap-already,0)})")
+    if not leads:
+        print("nothing due — cap reached or no eligible leads")
         return
 
-    print(f"\n🚀 LIVE: sending to up to {eff} leads, {outcfg.get('delay_min_s', 45)}–{outcfg.get('delay_max_s', 90)}s apart\n")
-    ok_n = skip_n = err_n = 0
-    consecutive_errors = 0
-    for i, r in enumerate(recs[:eff]):
-        num, text = render(c, r)
-        label = (r.get("partner_name") or r.get("name") or r["id"])
-        if not num:
-            print(f"[{i+1}/{eff}] ⏭️  {label}: no valid number, skipped")
-            append_row(LOG_PATH, ["ts", "mode", "lead_id", "number", "status", "detail"],
-                       [datetime.now().isoformat(timespec="seconds"), "live", r["id"], "", "skipped", "bad number"])
-            skip_n += 1
+    for i, rec in enumerate(leads, 1):
+        num, text = render(c, rec)
+        print(f"\n[{i}/{len(leads)}] {rec['business']} (crm#{rec['id']} odoo#{rec['odoo_id']}) -> +{num}")
+        print("  " + text.replace("\n", "\n  ")[:400])
+        if rec.get("steering"):
+            print(f"  🎯 steering: {rec['steering'][:120]}")
+        if not a.send:
             continue
-        ok, detail = evo_send(c, num, text)
-        ts = datetime.now().isoformat(timespec="seconds")
-        if ok:
-            append_row(STATE_PATH, ["date", "ts", "model", "lead_id", "number"],
-                       [date.today().isoformat(), ts, model_name, r["id"], num])
-            append_row(LOG_PATH, ["ts", "mode", "lead_id", "number", "status", "detail"],
-                       [ts, "live", r["id"], num, "sent", detail])
-            mark_sent(o, c, r["id"], num)
-            print(f"[{i+1}/{eff}] ✅ {label} → +{num}")
-            ok_n += 1
-            consecutive_errors = 0
-        else:
-            append_row(LOG_PATH, ["ts", "mode", "lead_id", "number", "status", "detail"],
-                       [ts, "live", r["id"], num, "error", detail])
-            print(f"[{i+1}/{eff}] ❌ {label}: {detail}")
-            err_n += 1
-            consecutive_errors += 1
-            if consecutive_errors >= 3:
-                print("🛑 3 consecutive errors — aborting. Check Evolution instance connection.")
-                break
-        if i < eff - 1:
-            time.sleep(random.uniform(outcfg.get("delay_min_s", 45), outcfg.get("delay_max_s", 90)))
-
-    print(f"\nDone. sent={ok_n} skipped={skip_n} errors={err_n} | state: {STATE_PATH} | odoo: tagged+chattered")
+        ok, info = evo_send(c, num, text)
+        variant = "v?"  # derived from which template matched is lost; log success only
+        log_sent(con, rec["id"], variant if ok else "fail", "sent" if ok else "failed",
+                 rec.get("steering"), rec["odoo_id"])
+        print(f"  -> {info}")
+        if i < len(leads):
+            time.sleep(random.randint(c["outreach"].get("delay_min_s", 45),
+                                      c["outreach"].get("delay_max_s", 90)))
+    con.close()
+    print("\nDONE" + (" (LIVE SEND)" if a.send else " (dry-run — nothing sent)"))
 
 
 if __name__ == "__main__":

@@ -1,32 +1,15 @@
 {
-  "evolution": {
-    "base_url": "PASTE_EVOLUTION_URL",
-    "api_key": "PASTE_EVOLUTION_APIKEY",
-    "instance": "PASTE_INSTANCE_NAME"
-  },
-  "odoo": {
-    "url": "PASTE_ODOO_URL",
-    "db": "PASTE_DB_NAME",
-    "email": "PASTE_ODOO_LOGIN_EMAIL",
-    "api_key": "PASTE_ODOO_APIKEY",
-    "model": "crm.lead",
-    "domain": [["type", "=", "lead"]],
-    "order": "id desc"
-  },
   "outreach": {
     "daily_cap": 15,
     "delay_min_s": 45,
     "delay_max_s": 90,
-    "demo_link": "PASTE_DEMO_VIDEO_LINK",
-    "my_name": "PASTE_YOUR_NAME",
+    "my_name": "Sanjeev",
+    "owner_number": "917705871046",
     "default_line1": "aapki Google business listing dekhi — kuch reviews ke replies missing lag rahe hain",
-    "line1_overrides": {
-      "919876543210__example_only": "aapki new clinic opening post dekhi — badhiya laga"
-    },
     "message_templates": [
-      "Namaste {name} ji 🙏\n{line1}\nHum ek AI automation system chalate hain jo in sab ko apne aap handle kar leta hai — aapka time zero.\nEk chhota sa demo bana rakha hai, bhej doon yahin WhatsApp pe?\n— {my_name}",
-      "Hello {name} ji 🙏\n{line1}\nHum clinics/brands ke liye reviews, blogs aur Google posts — sab automatic karke dete hain. Kakadeo ke ek clinic ne last month isse kaafi naye patients dekhe.\nAapko 2-min ka demo bhej doon? Yahin WhatsApp pe aa jayega.\n— {my_name}",
-      "Dilchasp lage to ek chhota demo bhej doon?\n— {my_name}"
-          ]
-        }
+      "Namaste {name} ji \ud83d\ude4f\n{line1}\nHum ek AI automation system chalate hain jo in sab ko apne aap handle kar leta hai — aapka time zero.\nEk chhota sa demo bana rakha hai, bhej doon yahin WhatsApp pe?\n\u2014 {my_name}",
+      "Hello {name} ji \ud83d\ude4f\n{line1}\nHum clinics/brands ke liye reviews, blogs aur Google posts — sab automatic karke dete hain. Kakadeo ke ek clinic ne last month isse kaafi naye patients dekhe.\nAapko 2-min ka demo bhej doon? Yahin WhatsApp pe aa jayega.\n\u2014 {my_name}",
+      "Namaste {name} ji \ud83d\ude4f\n{line1}\nMain Local Growth Engine se — hum dental clinics ke liye Google presence automatic handle karte hain (reviews, posts, blogs).\nInterest hai to 2-min demo bhej doon yahin?\n\u2014 {my_name}"
+    ]
+  }
 }
