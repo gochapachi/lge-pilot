@@ -129,6 +129,9 @@ border-radius:var(--radius);padding:12px;margin:10px 0}
 .switch input:checked+i{background:var(--ok)}
 .switch input:checked+i:before{transform:translateX(18px)}
 .act-ic{display:inline-block;width:22px;text-align:center}
+.fab{position:fixed;right:16px;bottom:calc(86px + env(safe-area-inset-bottom));border-radius:99px;
+padding:14px 22px;z-index:15;box-shadow:0 8px 22px rgba(0,0,0,.45);font-weight:600}
+@media(min-width:768px){.fab{bottom:28px;right:28px}}
 </style>
 </head>
 <body>
@@ -146,7 +149,7 @@ border-radius:var(--radius);padding:12px;margin:10px 0}
 
 <script>
 /* ================= config (pre-configured, zero setup) ================= */
-const VER='v0.4.0-agentic';
+const VER='v0.4.1';
 const LS=window.localStorage;
 const DEFAULT_URL=location.origin+'/api';
 const cfg={
@@ -203,7 +206,7 @@ async function autoPing(){try{const ms=await pingAPI();setConn('ok');return ms}c
 
 /* ================= TODAY ================= */
 async function loadToday(){
-  const [escs,tiks,follows,evs,pipeline]=await Promise.all([
+  const [escs,tiks,follows,evs,pipeline,autopilot]=await Promise.all([
     sb('escalations?select=*&status=eq.open&order=created_at.desc'),
     sb('tickets?select=*&status=in.(open,in_progress)&order=sla_due.asc'),
     sb('leads?select=*&stage=in.(contacted,replied,probing,demo_sent,negotiating)&next_action_at=not.is.null&order=next_action_at.asc&limit=20'),
@@ -254,21 +257,33 @@ async function viewToday(){
 const CRM_FIELDS='id,odoo_id,name,business,contact_name,phone,mobile,email,stage,source,is_test,steering,autopilot,ai_note,next_action,next_action_at,score,description,updated_at';
 const actIcon=k=>({note:'📝',wa_msg:'💬',call:'📞',demo:'📺',payment:'💰',stage:'→',escalation:'🚨',steering:'🎯',ai:'🤖'}[k]||'•');
 async function viewSales(){
-  const leads=await sb(`crm_lead?select=${CRM_FIELDS}&order=updated_at.desc&limit=400`);
+  const leads=await sb(`crm_lead?select=${CRM_FIELDS}&order=is_test.desc,updated_at.desc&limit=400`);
   window._crm=Object.fromEntries(leads.map(l=>['crm:'+l.id,l]));
-  return stageOrder.map(st=>{
-    const ls=leads.filter(l=>l.stage===st);
-    if(['closed_won','closed_lost','followup'].includes(st)&&!ls.length)return'';
-    return `<h2 style="margin:14px 0 8px">${stageLabel(st)} <span class="mut sm">(${ls.length})</span></h2>
-    ${ls.slice(0,30).map(l=>`<div class="card click" style="margin-bottom:8px" onclick="openLead('crm:${l.id}')">
+  window._salesLeads=leads;
+  return `<input id="sales_q" placeholder="🔍 search name / person / phone…" inputmode="search" style="margin-bottom:12px" oninput="salesFilter(this.value)"><div id="sales_list">${salesList('')}</div><button class="pri fab" onclick="newLeadForm()">＋ New lead</button>`;
+}
+function salesList(q){
+  const leads=window._salesLeads||[];
+  const ql=(q||'').trim().toLowerCase();
+  const f=ql?leads.filter(l=>((l.business||'')+' '+(l.name||'')+' '+(l.contact_name||'')+' '+(l.phone||'')+' '+(l.mobile||'')).toLowerCase().includes(ql)):leads;
+  if(ql&&!f.length)return empty('🔍','No leads match “'+esc(q)+'”.');
+  let out='';
+  stageOrder.forEach(st=>{
+    const ls=f.filter(l=>l.stage===st);
+    if(!ls.length)return;
+    out+=`<h2 style="margin:14px 0 8px">${stageLabel(st)} <span class="mut sm">(${ls.length})</span></h2>`;
+    out+=ls.slice(0,30).map(l=>`<div class="card click" style="margin-bottom:8px" onclick="openLead('crm:${l.id}')">
       <div class="row wrap"><b style="flex:2 1 160px">${esc(l.business||l.name)}${l.is_test?' 🧪':''}</b>
       ${l.autopilot?'<span class="pill" style="color:#7aa7ff;border-color:#2b4a7a">🤖 auto</span>':''}
-      <span class="pill p-${l.stage}">${stageLabel(l.stage)}</span>${l.score>0?`<span class="${l.score>60?'hot':l.score>30?'warn':'mut'} sm">🔥${l.score}</span>`:''}</div>
+      ${l.score>0?`<span class="${l.score>60?'hot':l.score>30?'warn':'mut'} sm">🔥${l.score}</span>`:''}</div>
       ${l.ai_note||l.next_action?`<div class="sm mut">🤖 ${esc(((l.ai_note||'')+' '||(l.next_action?'⏰ '+l.next_action:'')).trim().slice(0,72))}</div>`:''}
-      ${l.contact_name||l.phone||l.mobile?`<div class="sm mut">${esc(l.contact_name||'')} ${l.phone||l.mobile?'· '+esc(l.phone||l.mobile):''}</div>`:''}</div>`).join('')}
-    ${ls.length>30?`<div class="sm mut" style="margin:4px 0 8px">+ ${ls.length-30} more…</div>`:''}`;
-  }).join('')+`<div style="margin:20px 0"><button class="pri" onclick="newLeadForm()">+ New lead</button></div>`;
+      ${l.contact_name||l.phone||l.mobile?`<div class="sm mut">${esc(l.contact_name||'')} ${l.phone||l.mobile?'· '+esc(l.phone||l.mobile):''}</div>`:''}</div>`).join('');
+    if(ls.length>30)out+=`<div class="sm mut" style="margin:4px 0 8px">+ ${ls.length-30} more… (use search)</div>`;
+  });
+  return out||empty('💰','No leads yet — add your first one.');
 }
+function salesFilter(v){const el=document.getElementById('sales_list');if(el)el.innerHTML=salesList(v)}
+window.salesFilter=salesFilter;
 function newLeadForm(){
   openDrawer(`<div class="grab"></div><h2>New lead</h2>
   <label>Business</label><input id="nl_b"><label>Person</label><input id="nl_n">
