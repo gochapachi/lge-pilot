@@ -149,7 +149,7 @@ padding:14px 22px;z-index:15;box-shadow:0 8px 22px rgba(0,0,0,.45);font-weight:6
 
 <script>
 /* ================= config (pre-configured, zero setup) ================= */
-const VER='v0.4.1';
+const VER="v0.4.2";
 const LS=window.localStorage;
 const DEFAULT_URL=location.origin+'/api';
 const cfg={
@@ -239,7 +239,7 @@ async function viewToday(){
     ${chip('demo_sent','demo sent')}${chip('negotiating','negotiating')}${chip('closed_won','won ✦')}${chip('followup','follow-up')}
   </div></div>
   <div class="statrow"><span style="font-size:1.3rem">🤖</span>
-    <div style="flex:1;min-width:140px"><b class="sm">${d.auto.length} leads on autopilot</b>
+    <div style="flex:1;min-width:140px"><b class="sm">${d.auto.length} ${d.auto.length===1?'lead':'leads'} on autopilot</b>
       <div class="sm mut">${d.autoDue} due now — AI acts per your steering</div></div>
     <button class="sm" onclick="go('sales')">review</button></div>
   <div class="grid g2">
@@ -260,7 +260,7 @@ async function viewSales(){
   const leads=await sb(`crm_lead?select=${CRM_FIELDS}&order=is_test.desc,updated_at.desc&limit=400`);
   window._crm=Object.fromEntries(leads.map(l=>['crm:'+l.id,l]));
   window._salesLeads=leads;
-  return `<input id="sales_q" placeholder="🔍 search name / person / phone…" inputmode="search" style="margin-bottom:12px" oninput="salesFilter(this.value)"><div id="sales_list">${salesList('')}</div><button class="pri fab" onclick="newLeadForm()">＋ New lead</button>`;
+  return `<input id="sales_q" placeholder="🔍 search name / person / phone…" inputmode="search" style="margin-bottom:12px" oninput="salesFilter(this.value)"><div id="sales_list">${salesList('')}</div><button class="pri fab" onclick="newLeadForm()">+ New lead</button>`;
 }
 function salesList(q){
   const leads=window._salesLeads||[];
