@@ -29,7 +29,7 @@ border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;pad
 .topnav button:hover{color:var(--txt)}
 .tabs{display:flex;gap:2px;position:fixed;bottom:0;left:0;right:0;background:var(--card);
 border-top:1px solid var(--line);padding:6px 8px calc(6px + env(safe-area-inset-bottom));z-index:20}
-.tabs button{flex:1;background:none;border:none;color:var(--mut);font-size:.62rem;padding:5px 2px;cursor:pointer;border-radius:9px;white-space:nowrap}
+.tabs button{flex:1;background:none;border:none;color:#9fabc0;font-size:.65rem;padding:5px 2px;cursor:pointer;border-radius:9px;white-space:nowrap}
 .tabs button .ti{display:block;font-size:1.05rem;line-height:1.25}
 .tabs button.on{color:var(--acc2);background:var(--card2)}
 @media(min-width:768px){
@@ -111,7 +111,8 @@ border:1px solid var(--line);margin-bottom:8px;color:var(--txt);font-size:.95rem
 .moremenu a .mi{font-size:1.2rem}
 .statrow{display:flex;align-items:center;gap:10px;background:var(--card2);border:1px solid var(--line);
 border-radius:12px;padding:12px;margin:10px 0;flex-wrap:wrap}
-.pipewrap{overflow-x:auto;margin-bottom:12px}
+.pipewrap{overflow-x:auto;margin-bottom:12px;-webkit-mask-image:linear-gradient(90deg,#000 90%,transparent);mask-image:linear-gradient(90deg,#000 90%,transparent)}
+.pipewrap::-webkit-scrollbar{display:none}
 .pipe{display:flex;gap:8px;min-width:max-content}
 .pipe a{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 14px;text-align:center;min-width:86px}
 .pipe a b{display:block;font-size:1.15rem}
@@ -143,14 +144,16 @@ const cfg={
   set(k,v){v?LS.setItem(k,v):LS.removeItem(k)}
 };
 const API_BASE=()=>cfg.url.includes('supabase')?cfg.url.replace(/\/+$/,'')+'/rest/v1':cfg.url.replace(/\/+$/,'');
+const IS_SB=()=>cfg.url.includes('supabase');
+const AUTH=()=>IS_SB()?{'apikey':cfg.key,'Authorization':'Bearer '+cfg.key}:{};
 async function sb(path,opts={}){
   const r=await fetch(`${API_BASE()}/${path}`,{...opts,
-    headers:{'apikey':cfg.key,'Authorization':'Bearer '+cfg.key,'Content-Type':'application/json','Prefer':'return=representation',...(opts.headers||{})}});
+    headers:{...AUTH(),'Content-Type':'application/json','Prefer':'return=representation',...(opts.headers||{})}});
   if(!r.ok) throw new Error((await r.text()).slice(0,200));
   const t=await r.text();return t?JSON.parse(t):null;
 }
 const rpc=async(fn,args)=>{const r=await fetch(`${API_BASE()}/rpc/${fn}`,{method:'POST',
-  headers:{'apikey':cfg.key,'Authorization':'Bearer '+cfg.key,'Content-Type':'application/json'},body:JSON.stringify(args)});
+  headers:{...AUTH(),'Content-Type':'application/json'},body:JSON.stringify(args)});
   if(!r.ok) throw new Error((await r.text()).slice(0,200));const t=await r.text();return t?JSON.parse(t):null};
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.style.display='block';clearTimeout(t._tm);t._tm=setTimeout(()=>t.style.display='none',2600)}
 const esc=s=>(s??'').toString().replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -165,6 +168,7 @@ const NAV=[['today','🧭','Today'],['sales','💰','Sales'],['inbox','💬','In
   ['esc','🚨','Escalations'],['vault','🔐','Vault'],['analytics','📈','Analytics'],['conn','⚙️','Connection']];
 const MOBILE_TABS=[['today','🧭','Today'],['sales','💰','Sales'],['inbox','💬','Inbox'],['analytics','📈','Analytics'],['more','⋯','More']];
 let tab='today'; if(location.hash.includes('portal')) tab='PORTAL';
+else{const h0=location.hash.replace('#','');if(h0&&NAV.some(n=>n[0]===h0))tab=h0}
 const stageOrder=['new','contacted','replied','probing','demo_sent','negotiating','followup','closed_won','closed_lost'];
 const stageLabel=s=>s.replace('_',' ');
 function renderNav(){
@@ -188,9 +192,9 @@ async function autoPing(){try{const ms=await pingAPI();setConn('ok');return ms}c
 /* ================= TODAY ================= */
 async function loadToday(){
   const [escs,tiks,follows,evs,pipeline]=await Promise.all([
-    sb('escalations?select=*&status=open&order=created_at.desc'),
-    sb('tickets?select=*&status=in(open,in_progress)&order=sla_due.asc'),
-    sb('leads?select=*&stage=in(contacted,replied,probing,demo_sent,negotiating)&next_action_at=not.is.null&order=next_action_at.asc&limit=20'),
+    sb('escalations?select=*&status=eq.open&order=created_at.desc'),
+    sb('tickets?select=*&status=in.(open,in_progress)&order=sla_due.asc'),
+    sb('leads?select=*&stage=in.(contacted,replied,probing,demo_sent,negotiating)&next_action_at=not.is.null&order=next_action_at.asc&limit=20'),
     sb('events?select=*&order=created_at.desc&limit=15'),
     sb('crm_lead?select=stage').catch(()=>[])]);
   const msgsToday=await sb(`messages?select=id,direction,created_at&created_at=gte.${new Date().setHours(0,0,0,0)}`).catch(()=>[]);
@@ -417,7 +421,7 @@ async function resolveTicket(id){await sb(`tickets?id=eq.${id}`,{method:'PATCH',
 
 /* ================= ESCALATIONS ================= */
 async function viewEsc(){
-  const es=await sb('escalations?select=*,leads(name,business),clients(name)&status=open&order=created_at.desc');
+  const es=await sb('escalations?select=*,leads(name,business),clients(name)&status=eq.open&order=created_at.desc');
   window._esc=es;
   return es.length?es.map((e,i)=>`<div class="card esc" style="margin-bottom:8px">
     <b>${esc(e.reason)}</b> · ${esc(e.clients?.name||e.leads?.business||e.leads?.name||'—')} <span class="sm mut">${fmt(e.created_at)}</span>
@@ -619,7 +623,8 @@ async function render(){
     if(tab!=='conn')autoPing();
   }catch(e){
     setConn('bad');
-    app.innerHTML=`<div class="card"><h2>⚠️ ${esc(e.message)}</h2>
+    const msg=(e.message||'').trim().startsWith('{')?'API error — check Connection tab':e.message;
+    app.innerHTML=`<div class="card"><h2>⚠️ ${esc(msg)}</h2>
      <p class="sm mut" style="margin-top:8px">Couldn't reach the API. Check your connection or the API status.</p>
      <div class="row wrap" style="margin-top:12px">
        <button class="pri" onclick="render()">Retry</button>
