@@ -117,6 +117,18 @@ border-radius:12px;padding:12px;margin:10px 0;flex-wrap:wrap}
 .pipe a{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 14px;text-align:center;min-width:86px}
 .pipe a b{display:block;font-size:1.15rem}
 .pipe a span{font-size:.68rem;color:var(--mut);text-transform:uppercase;letter-spacing:.04em}
+/* ---------- agentic CRM ---------- */
+.ai{border:1px solid #2b4a7a;background:linear-gradient(180deg,rgba(79,140,255,.09),rgba(79,140,255,.02));
+border-radius:var(--radius);padding:12px;margin:10px 0}
+.ai .aihead{display:flex;align-items:center;gap:8px}
+.ai .aihead b{font-size:.85rem;flex:1}
+.switch{position:relative;width:40px;height:22px;flex:none;display:inline-block}
+.switch input{opacity:0;width:0;height:0;position:absolute}
+.switch i{position:absolute;inset:0;background:var(--line);border-radius:99px;transition:.2s;cursor:pointer}
+.switch i:before{content:'';position:absolute;width:16px;height:16px;border-radius:50%;background:#fff;top:3px;left:3px;transition:.2s}
+.switch input:checked+i{background:var(--ok)}
+.switch input:checked+i:before{transform:translateX(18px)}
+.act-ic{display:inline-block;width:22px;text-align:center}
 </style>
 </head>
 <body>
@@ -134,7 +146,7 @@ border-radius:12px;padding:12px;margin:10px 0;flex-wrap:wrap}
 
 <script>
 /* ================= config (pre-configured, zero setup) ================= */
-const VER='v0.3.0';
+const VER='v0.4.0-agentic';
 const LS=window.localStorage;
 const DEFAULT_URL=location.origin+'/api';
 const cfg={
@@ -196,7 +208,9 @@ async function loadToday(){
     sb('tickets?select=*&status=in.(open,in_progress)&order=sla_due.asc'),
     sb('leads?select=*&stage=in.(contacted,replied,probing,demo_sent,negotiating)&next_action_at=not.is.null&order=next_action_at.asc&limit=20'),
     sb('events?select=*&order=created_at.desc&limit=15'),
-    sb('crm_lead?select=stage').catch(()=>[])]);
+    sb('crm_lead?select=stage').catch(()=>[]),
+    sb('crm_lead?select=id,next_action_at&autopilot=eq.true').catch(()=>[])]);
+  const auto=autopilot||[];
   const msgsToday=await sb(`messages?select=id,direction,created_at&created_at=gte.${new Date().setHours(0,0,0,0)}`).catch(()=>[]);
   const pays=await sb('payments?select=amount,status&created_at=gte.'+new Date().setHours(0,0,0,0)).catch(()=>[]);
   const paidToday=pays.filter(p=>p.status==='paid').reduce((s,p)=>s+ +p.amount,0);
@@ -204,7 +218,8 @@ async function loadToday(){
   const inToday=msgsToday.filter(m=>m.direction==='in').length;
   const dueLeads=follows.filter(l=>new Date(l.next_action_at)<=new Date());
   const pc={};pipeline.forEach(r=>pc[r.stage]=(pc[r.stage]||0)+1);
-  return {escs,tiks,follows,evs,dueLeads,sentToday,inToday,paidToday,pc,pipelineTotal:pipeline.length};
+  return {escs,tiks,follows,evs,dueLeads,sentToday,inToday,paidToday,pc,pipelineTotal:pipeline.length,auto,
+    autoDue:auto.filter(l=>l.next_action_at&&new Date(l.next_action_at)<=new Date()).length};
 }
 async function viewToday(){
   const d=await loadToday();setConn('ok');
@@ -220,6 +235,10 @@ async function viewToday(){
     ${chip('new','new')}${chip('contacted','contacted')}${chip('replied','replied')}${chip('probing','probing')}
     ${chip('demo_sent','demo sent')}${chip('negotiating','negotiating')}${chip('closed_won','won ✦')}${chip('followup','follow-up')}
   </div></div>
+  <div class="statrow"><span style="font-size:1.3rem">🤖</span>
+    <div style="flex:1;min-width:140px"><b class="sm">${d.auto.length} leads on autopilot</b>
+      <div class="sm mut">${d.autoDue} due now — AI acts per your steering</div></div>
+    <button class="sm" onclick="go('sales')">review</button></div>
   <div class="grid g2">
     <div class="card"><h2>⏰ Follow-ups due (${d.dueLeads.length})</h2>
       ${d.dueLeads.map(l=>`<div class="row wrap" style="margin:6px 0"><div class="click" onclick="openLead('ops:${l.id}')" style="flex:2 1 160px">${esc(l.business||l.name)} <span class="pill p-${l.stage}">${stageLabel(l.stage)}</span></div><button class="sm" onclick="snooze('${l.id}',1)">+1h</button><button class="sm pri" onclick="go('inbox');openLead('ops:${l.id}')">Chat</button></div>`).join('')||empty('🎉','Nothing due — inbox is clear.')}</div>
@@ -232,7 +251,8 @@ async function viewToday(){
 }
 
 /* ================= SALES (crm_lead) ================= */
-const CRM_FIELDS='id,odoo_id,name,business,contact_name,phone,mobile,email,stage,source,is_test,created_at,updated_at';
+const CRM_FIELDS='id,odoo_id,name,business,contact_name,phone,mobile,email,stage,source,is_test,steering,autopilot,ai_note,next_action,next_action_at,score,description,updated_at';
+const actIcon=k=>({note:'📝',wa_msg:'💬',call:'📞',demo:'📺',payment:'💰',stage:'→',escalation:'🚨',steering:'🎯',ai:'🤖'}[k]||'•');
 async function viewSales(){
   const leads=await sb(`crm_lead?select=${CRM_FIELDS}&order=updated_at.desc&limit=400`);
   window._crm=Object.fromEntries(leads.map(l=>['crm:'+l.id,l]));
@@ -241,7 +261,10 @@ async function viewSales(){
     if(['closed_won','closed_lost','followup'].includes(st)&&!ls.length)return'';
     return `<h2 style="margin:14px 0 8px">${stageLabel(st)} <span class="mut sm">(${ls.length})</span></h2>
     ${ls.slice(0,30).map(l=>`<div class="card click" style="margin-bottom:8px" onclick="openLead('crm:${l.id}')">
-      <div class="row wrap"><b style="flex:2 1 160px">${esc(l.business||l.name)}${l.is_test?' 🧪':''}</b><span class="pill p-${l.stage}">${stageLabel(l.stage)}</span></div>
+      <div class="row wrap"><b style="flex:2 1 160px">${esc(l.business||l.name)}${l.is_test?' 🧪':''}</b>
+      ${l.autopilot?'<span class="pill" style="color:#7aa7ff;border-color:#2b4a7a">🤖 auto</span>':''}
+      <span class="pill p-${l.stage}">${stageLabel(l.stage)}</span>${l.score>0?`<span class="${l.score>60?'hot':l.score>30?'warn':'mut'} sm">🔥${l.score}</span>`:''}</div>
+      ${l.ai_note||l.next_action?`<div class="sm mut">🤖 ${esc(((l.ai_note||'')+' '||(l.next_action?'⏰ '+l.next_action:'')).trim().slice(0,72))}</div>`:''}
       ${l.contact_name||l.phone||l.mobile?`<div class="sm mut">${esc(l.contact_name||'')} ${l.phone||l.mobile?'· '+esc(l.phone||l.mobile):''}</div>`:''}</div>`).join('')}
     ${ls.length>30?`<div class="sm mut" style="margin:4px 0 8px">+ ${ls.length-30} more…</div>`:''}`;
   }).join('')+`<div style="margin:20px 0"><button class="pri" onclick="newLeadForm()">+ New lead</button></div>`;
@@ -321,8 +344,21 @@ async function openCrmLead(id){
    <div class="sm" style="margin:6px 0">
      ${phone?`📞 <span style="user-select:all">${esc(phone)}</span>`:'no phone'}${l.email?' · ✉️ '+esc(l.email):''}</div>
    ${phone&&waLink(phone)?`<a class="btn sm pri" style="display:inline-block" href="${waLink(phone)}" target="_blank">💬 Open WhatsApp</a>`:''}
+   <div class="ai">
+     <div class="aihead"><b>🤖 AI cockpit</b><span class="sm mut">autopilot</span>
+       <label class="switch"><input type="checkbox" ${l.autopilot?'checked':''} onchange="toggleAuto(${id},this)"><i></i></label></div>
+     <div class="sm" style="margin-top:8px">${esc(l.ai_note||'Idle — no AI action on this lead yet.')}</div>
+     ${l.next_action?`<div class="sm mut" style="margin-top:4px">⏰ next: ${esc(l.next_action)}${l.next_action_at?' · '+fmt(l.next_action_at):''}</div>`:''}
+     <label>Steer the AI <span class="sm">(your instruction for this lead — the AI follows it)</span></label>
+     <textarea id="steer_box" style="min-height:54px" placeholder="e.g. push the ₹15k trial, he is price-shy — mention the review gate first">${esc(l.steering||'')}</textarea>
+     <div class="row wrap" style="margin-top:6px">
+       <button class="sm pri" style="flex:0 0 auto" onclick="saveSteering(${id})">🎯 Save steering</button>
+       <input id="cn_txt" placeholder="set next action" value="${esc(l.next_action||'')}">
+       <input id="cn_when" type="datetime-local" value="${l.next_action_at?new Date(new Date(l.next_action_at)-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,16):''}" style="flex:1 1 150px">
+       <button class="sm" style="flex:0 0 auto" onclick="saveCrmNext(${id})">Save</button></div>
+   </div>
    <h2 style="margin-top:16px">Activity</h2>
-   <div class="chat" style="max-height:34vh">${acts.map(a=>`<div class="msg in"><b class="sm">${esc(a.kind)}</b> ${esc(a.detail||'')}<span class="t">${fmt(a.created_at)}</span></div>`).join('')||empty('📋','No activity yet.')}</div>
+   <div class="chat" style="max-height:34vh">${acts.map(a=>`<div class="msg in"><span class="act-ic">${actIcon(a.kind)}</span> ${esc(a.detail||'')}<span class="t">${esc(a.kind)} · ${fmt(a.created_at)}</span></div>`).join('')||empty('📋','No activity yet — steer the AI above or add a note.')}</div>
    <label>Add note</label><textarea id="crm_note" style="min-height:54px" placeholder="called — asked for pricing"></textarea>
    <div style="margin-top:8px"><button class="pri" onclick="addCrmNote(${id})">Save note</button></div>
    <div class="row wrap" style="margin-top:14px">
@@ -341,6 +377,27 @@ async function addCrmNote(id){
   await sb('crm_activity',{method:'POST',body:JSON.stringify({lead_id:id,kind:'note',detail:d})});
   toast('note saved');openCrmLead(id);
 }
+async function saveSteering(id){
+  const t=(v('steer_box')||'').trim();
+  await sb(`crm_lead?id=eq.${id}`,{method:'PATCH',body:JSON.stringify({steering:t||null})});
+  await sb('crm_activity',{method:'POST',body:JSON.stringify({lead_id:id,kind:'steering',detail:t||'(steering cleared)'})}).catch(()=>{});
+  toast('🎯 AI steered');openCrmLead(id);
+}
+window.saveSteering=saveSteering;
+async function toggleAuto(id,el){
+  const on=!!el.checked;
+  await sb(`crm_lead?id=eq.${id}`,{method:'PATCH',body:JSON.stringify({autopilot:on})});
+  await sb('crm_activity',{method:'POST',body:JSON.stringify({lead_id:id,kind:'ai',detail:on?'🟢 autopilot ON — AI may act':'⏸ autopilot paused by owner'})}).catch(()=>{});
+  toast(on?'🤖 autopilot on':'⏸ autopilot paused');
+}
+window.toggleAuto=toggleAuto;
+async function saveCrmNext(id){
+  const t=(v('cn_txt')||'').trim(),w=v('cn_when');
+  await sb(`crm_lead?id=eq.${id}`,{method:'PATCH',body:JSON.stringify({next_action:t||null,next_action_at:w?new Date(w).toISOString():null})});
+  if(t)await sb('crm_activity',{method:'POST',body:JSON.stringify({lead_id:id,kind:'note',detail:'⏰ next: '+t})}).catch(()=>{});
+  toast('next action saved');openCrmLead(id);
+}
+window.saveCrmNext=saveCrmNext;
 async function moveStage(id){const st=v('st_move');await sb(`leads?id=eq.${id}`,{method:'PATCH',body:JSON.stringify({stage:st})});
   await sb('events',{method:'POST',body:JSON.stringify({type:'stage_moved',lead_id:id,payload:{to:st}})});toast('→ '+st);render()}
 async function saveNext(id){await sb(`leads?id=eq.${id}`,{method:'PATCH',body:JSON.stringify({next_action:v('na_txt'),next_action_at:v('na_when')?new Date(v('na_when')).toISOString():null})});toast('next action saved')}
