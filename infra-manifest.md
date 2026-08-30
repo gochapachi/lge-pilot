@@ -38,3 +38,9 @@ apply schema-pg.sql (43 stmts + test-lead seed) → PostgREST :3100 probe → da
 | 2026-08-30 | VPS | lge-rest relaunched least-privilege (connects as lge_rest, anon role lge_anon, host net, :3200) — verified: crm_lead 200, clients/credentials 401, rpc 200 | — | — | — |
 | 2026-08-30 | VPS | **Coolify UI/API restored** (was missing entirely): `docker compose -p coolify --env-file .env -f docker-compose.yml -f docker-compose.prod.yml up -d` from `/data/coolify/source` → coolify 4.3.14 + db + redis + realtime, all healthy; all 7 projects + tokens intact; UI at https://server.anagataitsolutions.in | — | — | — |
 | 2026-08-30 | VPS | **Clutter removed:** 6 docker:cli bot containers (fix10-*, rst-*×2, finisher-*, fixer-*, fin-* — docker.sock-mounted, restart-looping; one ran `docker restart` against lge-rest every few seconds, another re-applied schema-pg.sql from GitHub on loop) + 1 zombie docker-proxy holding :6001. KEPT: FreeLLMAPI/Property-Verify/Remotion containers (live apps, caddy-labeled). Verified: 68 containers (+4 coolify −6 bots), all endpoints 200. | — | — | — |
+
+## 30-Aug-2026 (evening) — Coolify 4.3.14 upgrade + staging v0.4 deploy
+- **coolify2 network** created (clean IPv4-only, 10.0.24.0/24) + `coolify-proxy` dual-homed (hot, no downtime); Coolify destination repointed `coolify`→`coolify2` (DB) — fixes compose ParseAddr deploy bug. Existing containers untouched on `coolify`.
+- **Panel recovery after owner-run upgrade**: source-* containers bridged to `coolify` network with legacy aliases; `extra_hosts host.docker.internal:host-gateway` added to /data/coolify/source/docker-compose.yml. Re-apply runbook in dashboard/DEPLOY-STATE.md.
+- **Deleted (ours):** Coolify service `lge-dashboard-staging-web` (0730hxde…) — superseded duplicate serving old build.
+- **Staging live:** application tku33… serves v0.4.0-agentic over HTTPS via `applications.custom_labels` (TLS label set from infra/dashboard-web.staging.yml).
