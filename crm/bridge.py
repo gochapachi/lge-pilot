@@ -26,6 +26,8 @@ from datetime import datetime, timezone, timedelta, time as dtime
 
 import pg8000.native
 
+import chatflow
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 CREDS_PATH = os.path.join(HERE, "..", "secrets", "credentials.json")
 STATE_PATH = os.path.join(HERE, "..", "secrets", "bridge_state.json")
@@ -129,13 +131,16 @@ def evo_send_text(cfg, number, text):
 # ---------- DB helpers (ops tables = what the UI Inbox reads) ----------
 
 def lead_row(r):
-    return dict(id=r[0], name=r[1], business=r[2], stage=r[3], steering=r[4],
-                autopilot=r[5], is_test=r[6])
+    d = dict(id=r[0], name=r[1], business=r[2], stage=r[3], steering=r[4],
+             autopilot=r[5], is_test=r[6])
+    if len(r) > 7:
+        d["tags"] = r[7]
+    return d
 
 
 def fetch_lead(con, lid):
-    return lead_row(con.run("select id, name, business, stage, steering, autopilot, is_test "
-                            "from leads where id=:i", i=lid)[0])
+    r = con.run("select id, name, business, stage, coalesce(steering,''), autopilot, is_test, coalesce(tags,'{}') "
+                "from leads where id=:i", i=lid)[0]
 
 
 def ops_lead_for(con, jid, state, push=""):
@@ -148,14 +153,14 @@ def ops_lead_for(con, jid, state, push=""):
     digits = jid.split("@")[0]
     if jid.endswith("@s.whatsapp.net"):
         ph = norm_phone(digits) or digits
-        rows = con.run("""select id, name, business, stage, coalesce(steering,''), autopilot, is_test
+        rows = con.run("""select id, name, business, stage, coalesce(steering,''), autopilot, is_test, coalesce(tags,'{}')
                           from leads
                           where regexp_replace(coalesce(phone,''),'[^0-9]','','g') = :p limit 1""", p=ph)
         if rows:
             state["threads"][jid] = {"ops_id": str(rows[0][0])}
             return lead_row(rows[0])
     if any(h in jid for h in TEST_LEAD_HINTS):
-        rows = con.run("select id, name, business, stage, coalesce(steering,''), autopilot, is_test "
+        rows = con.run("select id, name, business, stage, coalesce(steering,''), autopilot, is_test, coalesce(tags,'{}') "
                        "from leads where is_test = true limit 1")
         if rows:
             state["threads"][jid] = {"ops_id": str(rows[0][0])}
@@ -164,7 +169,7 @@ def ops_lead_for(con, jid, state, push=""):
     phone = digits if jid.endswith("@s.whatsapp.net") else None
     r = con.run("""insert into leads (name, business, stage, source, phone, notes)
                    values (:n, :n, 'contacted', 'whatsapp', :p, 'auto-created by bridge: inbound WhatsApp chat')
-                   returning id, name, business, stage, coalesce(steering,''), autopilot, is_test""",
+                   returning id, name, business, stage, coalesce(steering,''), autopilot, is_test, coalesce(tags,'{}')""",
                 n=name, p=phone)[0]
     state["threads"][jid] = {"ops_id": str(r[0])}
     return lead_row(r)
@@ -178,6 +183,19 @@ def insert_msg(con, ops_id, direction, body, chunks, wa_id, status):
 
 # ---------- reply brain ----------
 
+def llm_call(system, user):
+    msgs = [{"role": "system", "content": system},
+            {"role": "user", "content": user}]
+    body = json.dumps({"model": LLM["model"], "messages": msgs,
+                       "max_tokens": 220, "temperature": 0.7}).encode()
+    req = urllib.request.Request(LLM["base_url"] + "/chat/completions", data=body, method="POST",
+                                 headers={"Authorization": "Bearer " + LLM["api_key"],
+                                          "Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=45) as r:
+        d = json.loads(r.read().decode())
+    return (d["choices"][0]["message"]["content"] or "").strip()
+
+
 def llm_reply(history, lead, stopped):
     msgs = [{"role": "system", "content": SYSTEM},
             {"role": "system", "content":
@@ -188,14 +206,9 @@ def llm_reply(history, lead, stopped):
                     " | OPTED OUT EARLIER: acknowledge politely, no pitch." if stopped else "")}]
     for h in history[-10:]:
         msgs.append({"role": "user" if h["dir"] == "in" else "assistant", "content": h["text"]})
-    body = json.dumps({"model": LLM["model"], "messages": msgs,
-                       "max_tokens": 220, "temperature": 0.7}).encode()
-    req = urllib.request.Request(LLM["base_url"] + "/chat/completions", data=body, method="POST",
-                                 headers={"Authorization": "Bearer " + LLM["api_key"],
-                                          "Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=45) as r:
-        d = json.loads(r.read().decode())
-    return (d["choices"][0]["message"]["content"] or "").strip()
+    return llm_call("\n\n".join(m["content"] for m in msgs if m["role"] == "system"),
+                    "\n".join(("CUSTOMER: " if h["dir"] == "in" else "YOU: ") + h["text"]
+                              for h in history[-10:]))
 
 
 def in_quiet_hours(now_ist):
@@ -279,12 +292,31 @@ def run_pass(dry=False, no_reply=False):
         if not number:
             print(f"OUT? {jid[:28]:28} lid JID — logged for owner, no direct send")
             continue
+        # ---- chatflow engine decides the turn ----
         try:
-            reply = llm_reply(hist, lead, stopped=bool(state["stopped"].get(jid)))
+            turn = chatflow.next_turn(lead, hist)
         except Exception as ex:
-            print(f"LLM err {jid[:24]}: {str(ex)[:100]}")
+            print(f"chatflow err {jid[:24]}: {str(ex)[:100]}")
             continue
-        bubbles = [b.strip() for b in re.split(r"\n\s*\n", reply) if b.strip()][:3]
+        bubbles = None
+        if turn.get("fallback"):
+            try:
+                bubbles = chatflow.phrase_with_llm(turn, lead, llm_call)
+            except Exception:
+                bubbles = None
+        if not bubbles:
+            bubbles = turn["fallback"] or turn["bubbles"] or []
+        if not bubbles:
+            continue
+        # persist state deltas
+        if turn.get("stage") and turn["stage"] != lead["stage"]:
+            con.run("update leads set stage=:s where id=:i", s=turn["stage"], i=lead["id"])
+            lead["stage"] = turn["stage"]
+        if turn.get("tags") and turn["tags"] != lead.get("tags"):
+            con.run("update leads set tags=:t where id=:i", t=turn["tags"], i=lead["id"])
+            lead["tags"] = turn["tags"]
+        con.run("update leads set notes = 'chatflow:' || :k || ' obj=' || :o || ' dq=' || :d where id=:i",
+                k=turn.get("kind") or "?", o=turn.get("objection") or "-", d=str(turn.get("ask_dq") or "-"), i=lead["id"])
         ids = []
         try:
             for i, b in enumerate(bubbles):
