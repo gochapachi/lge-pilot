@@ -251,7 +251,10 @@ def in_quiet_hours(now_ist):
 # ---------- one pass ----------
 
 def run_pass(dry=False, no_reply=False):
-    cfg = json.load(open(CREDS_PATH))
+    try:
+        cfg = json.load(open(CREDS_PATH))
+    except Exception:
+        cfg = {"evolution": {}, "owner_whatsapp": "917705871046"}
     state = load_state()
     today = ist_now().strftime("%Y-%m-%d")
     if state["sent_today"].get("date") != today:
@@ -349,7 +352,11 @@ def run_pass(dry=False, no_reply=False):
             bubbles = turn["fallback"] or turn["bubbles"] or []
         if not bubbles:
             continue
-        # persist state deltas
+        # persist state deltas (phase first — disambiguates urgency vs sales after restarts)
+        if turn.get("phase"):
+            tg = [t for t in (turn.get("tags") or lead.get("tags") or []) if not t.startswith("phase=")]
+            tg.append("phase=" + turn["phase"])
+            turn["tags"] = tg
         if turn.get("stage") and turn["stage"] != lead["stage"]:
             con.run("update leads set stage=:s where id=:i", s=turn["stage"], i=lead["id"])
             lead["stage"] = turn["stage"]

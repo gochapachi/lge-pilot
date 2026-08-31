@@ -143,13 +143,17 @@ def next_turn(lead, history):
         if re.search(r"(achha|theek|badhiya|maza|busy|thik|thik hai|chalt[aā])", low):
             return _phased(None,
                 [mirror(text, 70), "sunno, ek kaam ka sawaal poochhoon? aapke customers abhi aate kaise hain — Google, walk-in, ya jaan-pehchaan se?"],
-                "probing", tags, "rapport_to_probing", echo=text, ask_dq=1)
+                "probing", set_tag(tags, "dq1", "asked"), "rapport_to_probing", echo=text, ask_dq=1)
         return _phased(None,
             [mirror(text, 70), "aur aap? sab badhiya? 🙂"],
             "rapport", tags, "rapport_warm")
 
     # PROBING: DQ loop, one per turn
     if phase == "probing":
+        asked = [d for d in DQ_ORDER if tag_kv(tags, f"dq{d}") == "asked"]
+        if asked:
+            tags = set_tag(tags, f"dq{max(asked)}", (text or "").strip()[:60] or "-")
+            answered = answered_dqs(tags)
         if all(d in answered for d in (1, 2, 3, 4)):
             return _need_gen_turn(text, business, tags, echo=text)
         nxt = next((d for d in DQ_ORDER if d not in answered), None)
