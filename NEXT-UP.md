@@ -1,12 +1,13 @@
-# NEXT UP — single source of truth for remaining work
+# NEXT UP — single source of truth for remaining work (updated 31-Aug)
 
 ## Now (this week)
 - [ ] **Owner: open staging on phone** → try Sales → lead → 🤖 AI cockpit (steering + autopilot)
-- [ ] **OWNER ACTION (NOW DRILL-CRITICAL):** n8n → workflow **"Anagata AIRM - Multi-Agent Sales"** → settings → enable **"Available in MCP"**. Then I apply the scripted FreeLLM swap (`crm/AIRM-provider-fix.md`). **Why now:** AIRM auto-replies are cross-talking on the drill thread (off-context GPay chatter after owner's "Whatsapp pe" reply + it sent a raw "Bad request — Generate Post" error to 919026019566). Same WhatsApp sender, two brains — swap or pause AIRM before the walkthrough continues.
-- [ ] **Drill state (31-Aug):** D1 → "where did you get my number" answered → D2 nudge 07:15 IST → owner "explain more" 07:35 → demo explanation + live samples 07:48 → **owner picked "Whatsapp pe"** → **HOLD: AIRM cross-talk on the thread, owner asked "did you send it?" (audit: no — GPay referral never touched our instance)**. Resume walkthrough right after AIRM swap. ⚠️ Owner replies land under lid JID `259768245555447@lid` — inbox.py watches both now.
-- [ ] Pilot drill e2e on 10421: reply ✅ → explanation ✅ → **next: owner picks live demo call ya WhatsApp continue → Cashfree test link → closed_won → exit gate**.
+- [x] **AIRM stopped by owner (31-Aug)** — cross-talk resolved. FreeLLM swap (`crm/AIRM-provider-fix.md`) still pending owner MCP toggle if AIRM comes back.
+- [ ] **Drill state (31-Aug):** D1 → "where did you get my number" answered → D2 nudge 07:15 IST → owner "explain more" 07:35 → demo explanation + live samples 07:48 → **owner picked "Whatsapp pe"** → **AIRM cross-talk resolved (owner stopped it; GPay referral audited = never ours)**. Resume walkthrough. ⚠️ Owner replies land under lid JID `259768245555447@lid` — inbox.py watches both now.
+- [x] **Reply bridge LIVE (31-Aug):** `crm/bridge.py` polls Evolution → ops leads (auto-create + lid-JID adoption) → `messages` (Inbox now shows chats) → FreeLLM Hinglish replies with per-thread memory + steering. Guardrails: test lead NEVER auto-replied, opt-out mute, 4/lead/day · 40/day global · 45s anti-burst · quiet hours 21:30–08:00 IST. Run `--listen` on the VPS for 24/7 (sandbox listener dies with session).
+- [x] **Dashboard v0.4.4 LIVE:** `openLead()` uuid-cast bug fixed (ops chat drawers never opened — root cause of "chats not reflecting"), ops drawer got steering+autopilot cockpit, inbox cards polished. **`leads` seeding bug in schema-pg.sql (30 duplicate test rows) still unfixed — make seed idempotent.**
+- [ ] Pilot drill e2e on 10421: reply ✅ → explanation ✅ → owner picked "Whatsapp pe" → **walkthrough resumes now that AIRM is stopped** → Cashfree test link → closed_won → **exit gate**.
 - [x] **Vision QA round 3 on live staging (31-Aug):** pass — search/FAB/crash/cockpit all verified; **1 real bug found+fixed+deployed**: Today KPIs (msgs/replies/paid) silently always 0 (epoch-ms filter → 400s swallowed); v0.4.3 live, zero console errors, KPIs verified rendering (1331 pipeline). UI activity feed shows D2 row ✅
-- [ ] n8n reply bridge (webhook → messages table) so replies land in Inbox automatically
 
 ## UI polish (minor, from QA round 3 — batch into next PR)
 - [ ] Today pipeline chip strip clips 4th chip at right edge ("PROBIN…") — add right padding/fade
