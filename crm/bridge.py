@@ -166,8 +166,13 @@ def lead_row(r):
 
 
 def fetch_lead(con, lid):
-    r = con.run("select id, name, business, stage, coalesce(steering,''), autopilot, is_test, coalesce(tags,'{}') "
-                "from leads where id=:i", i=lid)[0]
+    rows = con.run("select id, name, business, stage, coalesce(steering,''), autopilot, is_test, "
+                   "coalesce(tags,'{}'), coalesce(phone,'') from leads where id=:i", i=lid)
+    if not rows:
+        return None
+    r = rows[0]
+    return dict(id=r[0], name=r[1], business=r[2], stage=r[3], steering=r[4],
+                autopilot=r[5], is_test=r[6], tags=r[7], phone=r[8])
 
 
 def ops_lead_for(con, jid, state, push=""):
@@ -305,7 +310,9 @@ def run_pass(dry=False, no_reply=False):
             continue
         try:
             lead = fetch_lead(con, th["ops_id"])
-        except IndexError:
+        except (IndexError, TypeError):
+            continue
+        if not lead:
             continue
         if lead["is_test"] and "engine=on" not in (lead.get("tags") or []):
             continue                                  # drill thread: manual unless engine=on
