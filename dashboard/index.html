@@ -466,7 +466,7 @@ window.snooze=snooze;
 
 /* ================= INBOX ================= */
 async function viewInbox(){
-  const [msgs,ls]=await Promise.all([sb('messages?select=*&order=created_at.desc&limit=120'),sb('leads?select=id,name,business,phone')]);
+  const [msgs,ls]=await Promise.all([sb('messages?select=*&order=created_at.desc&limit=120'),sb('leads?select=*')]);
   window._opsLeads=Object.fromEntries(ls.map(l=>[l.id,l]));
   const byLead={};msgs.forEach(m=>{(byLead[m.lead_id]=byLead[m.lead_id]||[]).push(m)});
   return Object.keys(byLead).length?Object.entries(byLead).map(([id,ms])=>{
