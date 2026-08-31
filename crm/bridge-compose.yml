@@ -1,0 +1,33 @@
+# Coolify deploy shape for the WhatsApp reply bridge (lge-pilot-bridge).
+# Runs bridge.py --listen with restart=always; state is DB-backed (restart-safe).
+services:
+  bridge:
+    build:
+      context: .
+      dockerfile: bridge.Dockerfile
+    container_name: lge-pilot-bridge
+    restart: always
+    environment:
+      # Postgres (docker-run stack on same host, host-gateway from container net)
+      DB_USER: root
+      DB_HOST: host.docker.internal
+      DB_PORT: "5434"
+      DB_NAME: lge
+      DB_PASSWORD: ${LGE_DB_PASSWORD}
+      # Evolution API
+      EVO_BASE_URL: https://evo.anagataitsolutions.in
+      EVO_API_KEY: ${LGE_EVO_API_KEY}
+      EVO_INSTANCE: n8n
+      # LLM brain
+      LLM_BASE_URL: https://freellm.anagataitsolutions.in/v1
+      LLM_API_KEY: ${LGE_LLM_API_KEY}
+      LLM_MODEL: deepseek-v4-flash
+      # bridge
+      BRIDGE_STATE: /data/bridge_state.json
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - bridge-state:/data
+
+volumes:
+  bridge-state:
