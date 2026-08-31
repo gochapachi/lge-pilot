@@ -3,10 +3,15 @@
 ## Now (this week)
 - [ ] **Owner: open staging on phone** → try Sales → lead → 🤖 AI cockpit (steering + autopilot)
 - [ ] **OWNER 10-SEC ACTION (blocking):** n8n → workflow **"Anagata AIRM - Multi-Agent Sales"** → settings → enable **"Available in MCP"**. Then I'll apply the scripted FreeLLM swap (`crm/AIRM-provider-fix.md`) — Ollama Cloud is exhausted, AIRM WhatsApp auto-reply sends rate-limit errors.
-- [ ] **D1 send (done 30-Aug)** → owner replied "where did you get my number" → answered via Evolution (done). Continue drill if owner replies again.
-- [ ] Pilot drill e2e on 10421: reply → demo → Cashfree link → closed_won → **exit gate**
-- [ ] Vision QA round 3 on live staging after polish (v0.4.2) — search/FAB/crash verified; re-confirm inline
+- [ ] **Drill state (31-Aug):** D1 sent 30-Aug → owner asked "where did you get my number" → answered (logged) → **D2 nudge sent 31-Aug 07:15 IST** (demo offer + ₹15k trial + opt-out, 4 bubbles). Owner action: reply "bhej do" on WhatsApp → demo link goes out.
+- [ ] Pilot drill e2e on 10421: **D2 done ✅** → demo → Cashfree link → closed_won → **exit gate**. Waiting on owner reply.
+- [x] **Vision QA round 3 on live staging (31-Aug):** pass — search/FAB/crash/cockpit all verified; **1 real bug found+fixed+deployed**: Today KPIs (msgs/replies/paid) silently always 0 (epoch-ms filter → 400s swallowed); v0.4.3 live, zero console errors, KPIs verified rendering (1331 pipeline). UI activity feed shows D2 row ✅
 - [ ] n8n reply bridge (webhook → messages table) so replies land in Inbox automatically
+
+## UI polish (minor, from QA round 3 — batch into next PR)
+- [ ] Today pipeline chip strip clips 4th chip at right edge ("PROBIN…") — add right padding/fade
+- [ ] Cockpit: next_action label truncates without ellipsis ("D2 demo nudge sen")
+- [ ] FAB overlaps last lead card (standard, low priority — extra list bottom padding)
 
 ## Next (after exit gate)
 - [ ] Prod release: PR staging→main (**owner merges**) + deploy lge-dashboard-prod
