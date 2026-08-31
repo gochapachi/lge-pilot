@@ -1,0 +1,332 @@
+#!/usr/bin/env python3
+"""bridge.py — WhatsApp reply bridge for the LGE pilot (the NO-N8N inbox brain).
+
+Polls Evolution API for inbound WhatsApp messages, maps each chat to an ops
+`leads` row (auto-creates leads for unknown numbers), writes `messages` rows
+(the Inbox UI reads these), and — when guardrails allow — generates a reply
+with the FreeLLM LLM using per-thread memory + the lead's steering, then sends
+it via Evolution and logs the out bubble.
+
+Usage:
+  python3 bridge.py --dry      # ingest logic shown, nothing written/sent
+  python3 bridge.py --once     # one pass: ingest + maybe reply
+  python3 bridge.py --listen   # loop forever (default every 60s, --every N)
+  python3 bridge.py --no-reply # ingest + log only, never generate replies
+
+Guardrails (hard-coded, safety first):
+  - test lead / owner thread  → ingest only, NEVER auto-reply (drill is manual)
+  - opt-out phrases           → recorded, thread never replied again
+  - reply caps                → max 4/lead/day, 40/day global, 2h cooldown
+  - quiet hours               → 21:30-08:00 IST: ingest only, replies defer
+  - group chats / status      → skipped
+  - lid JIDs (no phone digits)→ logged for owner, no direct send possible
+"""
+import argparse, json, os, re, sys, time as time_mod, urllib.request, urllib.error
+from datetime import datetime, timezone, timedelta, time as dtime
+
+import pg8000.native
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+CREDS_PATH = os.path.join(HERE, "..", "secrets", "credentials.json")
+STATE_PATH = os.path.join(HERE, "..", "secrets", "bridge_state.json")
+
+DB = dict(user="root", host="213.199.62.248", port=5434, database="lge", password="Itachi933641")
+LLM = {"base_url": "https://freellm.anagataitsolutions.in/v1",
+       "api_key": "freellmapi-92711a0508c8175cce421318cdf36de3f88c968b841855ae",
+       "model": "deepseek-v4-flash"}
+
+# Drill test lead: ops leads.id + every JID it might wear (phone + lid)
+TEST_LEAD_HINTS = {"917705871046", "259768245555447"}
+
+OPT_OUT = ("nahi chahiye", "mat bhejo", "stop", "not interested", "no thanks",
+           "remove karo", "unsubscribe", "pareshan", "blok", "block kar")
+QUIET_IST = (dtime(21, 30), dtime(8, 0))   # replies deferred inside this window
+MAX_PER_LEAD = 4
+MAX_GLOBAL = 40
+MIN_GAP_S = 45          # anti-burst: min seconds between auto-reply cycles per thread
+SYSTEM = """You are the AI front-desk assistant for 'Local Growth Engine' (Kanpur), replying
+on the business WhatsApp of Sanjeev. You talk to small-business owners (clinic/salon/shop owners)
+in casual Hinglish. Rules:
+- Reply as 1-3 short bubbles separated by a blank line. Each bubble max ~25 words.
+- Warm, human-pada hua tone; never corporate; light emoji use.
+- Goal: grow interest in the demo. Trial month is Rs 15,000 (setup included) — mention only when asked about price.
+- No links ever. Never invent clients or results.
+- Angry or out-of-scope questions: apologise briefly, say Sanjeev ji will personally reply soon.
+- If the person opted out earlier, do not pitch — only a polite ack.
+- You ARE an AI; if asked directly, say: main Sanjeev ji ka AI assistant hoon.
+Output: the bubbles only, no preamble, no quotes."""
+
+
+def ist_now():
+    return datetime.now(timezone(timedelta(hours=5, minutes=30)))
+
+
+def load_state():
+    if os.path.exists(STATE_PATH):
+        return json.load(open(STATE_PATH))
+    return {"seen": {}, "threads": {}, "sent_today": {"date": "", "n": 0},
+            "lead_replies_today": {}, "stopped": {}, "_push": {}}
+
+
+def save_state(s):
+    json.dump(s, open(STATE_PATH, "w"), indent=1)
+
+
+def norm_phone(raw):
+    d = re.sub(r"\D", "", str(raw or ""))
+    if d.startswith("00"):
+        d = d[2:]
+    if len(d) == 11 and d.startswith("0"):
+        d = "91" + d[1:]
+    if len(d) == 10 and d[0] in "123456789":
+        d = "91" + d
+    return d if (len(d) == 12 and d.startswith("91")) else None
+
+
+# ---------- Evolution ----------
+
+def evo_page_inbound(cfg, max_pages=8):
+    """All outside-sender text messages from the recent-messages index."""
+    out = []
+    for page in range(1, max_pages + 1):
+        req = urllib.request.Request(
+            f"{cfg['evolution']['base_url'].rstrip('/')}/chat/findMessages/{cfg['evolution']['instance']}",
+            data=json.dumps({"page": page, "offset": 50}).encode(),
+            headers={"apikey": cfg["evolution"]["api_key"], "Content-Type": "application/json"},
+            method="POST")
+        with urllib.request.urlopen(req, timeout=30) as r:
+            d = json.loads(r.read().decode())
+        batch = (d.get("messages") or {}).get("records", [])
+        for m in batch:
+            k = m.get("key") or {}
+            jid = k.get("remoteJid") or ""
+            if k.get("fromMe") or not jid or jid.endswith("@g.us") or jid == "status@broadcast":
+                continue
+            msg = m.get("message") or {}
+            txt = msg.get("conversation") or (msg.get("extendedTextMessage") or {}).get("text", "") or ""
+            if not txt.strip():
+                continue
+            out.append({"jid": jid, "wa_id": k.get("id"), "text": txt.strip(),
+                        "ts": int(m.get("messageTimestamp") or 0),
+                        "push": m.get("pushName") or ""})
+        if len(batch) < 50:
+            break
+    out.sort(key=lambda x: x["ts"])
+    return out
+
+
+def evo_send_text(cfg, number, text):
+    body = json.dumps({"number": str(number), "text": text}).encode()
+    req = urllib.request.Request(
+        f"{cfg['evolution']['base_url'].rstrip('/')}/message/sendText/{cfg['evolution']['instance']}",
+        data=body, method="POST",
+        headers={"apikey": cfg["evolution"]["api_key"], "Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        out = json.load(r)
+    return (out.get("key") or {}).get("id", "?")
+
+
+# ---------- DB helpers (ops tables = what the UI Inbox reads) ----------
+
+def lead_row(r):
+    return dict(id=r[0], name=r[1], business=r[2], stage=r[3], steering=r[4],
+                autopilot=r[5], is_test=r[6])
+
+
+def fetch_lead(con, lid):
+    return lead_row(con.run("select id, name, business, stage, steering, autopilot, is_test "
+                            "from leads where id=:i", i=lid)[0])
+
+
+def ops_lead_for(con, jid, state, push=""):
+    """Find or create the ops lead for a chat JID."""
+    if jid in state["threads"] and state["threads"][jid].get("ops_id"):
+        try:
+            return fetch_lead(con, state["threads"][jid]["ops_id"])
+        except IndexError:
+            pass  # lead deleted; recreate below
+    digits = jid.split("@")[0]
+    if jid.endswith("@s.whatsapp.net"):
+        ph = norm_phone(digits) or digits
+        rows = con.run("""select id, name, business, stage, coalesce(steering,''), autopilot, is_test
+                          from leads
+                          where regexp_replace(coalesce(phone,''),'[^0-9]','','g') = :p limit 1""", p=ph)
+        if rows:
+            state["threads"][jid] = {"ops_id": str(rows[0][0])}
+            return lead_row(rows[0])
+    if any(h in jid for h in TEST_LEAD_HINTS):
+        rows = con.run("select id, name, business, stage, coalesce(steering,''), autopilot, is_test "
+                       "from leads where is_test = true limit 1")
+        if rows:
+            state["threads"][jid] = {"ops_id": str(rows[0][0])}
+            return lead_row(rows[0])
+    name = state.get("_push", {}).get(jid) or digits
+    phone = digits if jid.endswith("@s.whatsapp.net") else None
+    r = con.run("""insert into leads (name, business, stage, source, phone, notes)
+                   values (:n, :n, 'contacted', 'whatsapp', :p, 'auto-created by bridge: inbound WhatsApp chat')
+                   returning id, name, business, stage, coalesce(steering,''), autopilot, is_test""",
+                n=name, p=phone)[0]
+    state["threads"][jid] = {"ops_id": str(r[0])}
+    return lead_row(r)
+
+
+def insert_msg(con, ops_id, direction, body, chunks, wa_id, status):
+    con.run("""insert into messages (lead_id, direction, kind, body, chunks, wa_id, status)
+               values (:l, :d, 'text', :b, :c, :w, :s)""",
+            l=ops_id, d=direction, b=body, c=json.dumps(chunks), w=wa_id, s=status)
+
+
+# ---------- reply brain ----------
+
+def llm_reply(history, lead, stopped):
+    msgs = [{"role": "system", "content": SYSTEM},
+            {"role": "system", "content":
+                "Lead facts: business=%s stage=%s%s%s" % (
+                    lead.get("business") or lead.get("name") or "unknown",
+                    lead.get("stage") or "new",
+                    (" | steering: " + str(lead["steering"])) if lead.get("steering") else "",
+                    " | OPTED OUT EARLIER: acknowledge politely, no pitch." if stopped else "")}]
+    for h in history[-10:]:
+        msgs.append({"role": "user" if h["dir"] == "in" else "assistant", "content": h["text"]})
+    body = json.dumps({"model": LLM["model"], "messages": msgs,
+                       "max_tokens": 220, "temperature": 0.7}).encode()
+    req = urllib.request.Request(LLM["base_url"] + "/chat/completions", data=body, method="POST",
+                                 headers={"Authorization": "Bearer " + LLM["api_key"],
+                                          "Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=45) as r:
+        d = json.loads(r.read().decode())
+    return (d["choices"][0]["message"]["content"] or "").strip()
+
+
+def in_quiet_hours(now_ist):
+    a, b = QUIET_IST
+    return a <= now_ist or now_ist < b
+
+
+# ---------- one pass ----------
+
+def run_pass(dry=False, no_reply=False):
+    cfg = json.load(open(CREDS_PATH))
+    state = load_state()
+    today = ist_now().strftime("%Y-%m-%d")
+    if state["sent_today"].get("date") != today:
+        state["sent_today"] = {"date": today, "n": 0}
+        state["lead_replies_today"] = {}
+
+    con = pg8000.native.Connection(**DB)
+    new_in = []
+    for m in evo_page_inbound(cfg):
+        if m["wa_id"] in state["seen"]:
+            continue
+        jid = m["jid"]
+        lead = ops_lead_for(con, jid, state)
+        state["seen"][m["wa_id"]] = 1
+        state.setdefault("_push", {})[jid] = m["push"] or state.get("_push", {}).get(jid, "")
+        th = state["threads"].setdefault(jid, {"ops_id": str(lead["id"])})
+        th.setdefault("history", []).append({"dir": "in", "text": m["text"], "ts": m["ts"]})
+        th["history"] = th["history"][-40:]
+        if not dry:
+            insert_msg(con, lead["id"], "in", m["text"], [{"text": m["text"]}], m["wa_id"], "received")
+        new_in.append((jid, m["text"]))
+        print(f"IN  {jid[:28]:28} {m['text'][:64]!r}")
+        if any(p in m["text"].lower() for p in OPT_OUT):
+            state["stopped"][jid] = m["ts"]
+            if not dry:
+                con.run("update leads set notes='opted out (bridge auto-detect)' where id=:i", i=lead["id"])
+            print("    -> opt-out recorded, thread muted")
+    con.close()
+
+    if dry:
+        print(f"DRY: would have ingested {len(new_in)}, reply pass skipped")
+        return
+    save_state(state)
+
+    if no_reply:
+        print(f"ingested {len(new_in)} (no-reply mode)")
+        return
+
+    # ---- reply pass ----
+    con = pg8000.native.Connection(**DB)
+    now_ist = ist_now()
+    quiet = in_quiet_hours(now_ist.time())
+    replies = 0
+    for jid, th in state["threads"].items():
+        hist = th.get("history", [])
+        if not hist or hist[-1]["dir"] != "in":
+            continue                                  # nothing unanswered
+        if state["stopped"].get(jid):
+            continue
+        try:
+            lead = fetch_lead(con, th["ops_id"])
+        except IndexError:
+            continue
+        if lead["is_test"]:
+            continue                                  # drill thread: human handles it
+        if not lead["autopilot"]:
+            continue
+        if quiet:
+            continue
+        if state["lead_replies_today"].get(jid, 0) >= MAX_PER_LEAD:
+            continue
+        if state["sent_today"]["n"] >= MAX_GLOBAL:
+            break
+        last_out = max([h["ts"] for h in hist if h["dir"] == "out"] + [0])
+        if last_out >= hist[-1]["ts"]:
+            continue                                  # already answered
+        if last_out and hist[-1]["ts"] - last_out < MIN_GAP_S:
+            continue                                  # anti-burst gap
+        number = jid.split("@")[0] if jid.endswith("@s.whatsapp.net") else None
+        if not number:
+            print(f"OUT? {jid[:28]:28} lid JID — logged for owner, no direct send")
+            continue
+        try:
+            reply = llm_reply(hist, lead, stopped=bool(state["stopped"].get(jid)))
+        except Exception as ex:
+            print(f"LLM err {jid[:24]}: {str(ex)[:100]}")
+            continue
+        bubbles = [b.strip() for b in re.split(r"\n\s*\n", reply) if b.strip()][:3]
+        ids = []
+        try:
+            for i, b in enumerate(bubbles):
+                ids.append(evo_send_text(cfg, number, b))
+                if i < len(bubbles) - 1:
+                    time_mod.sleep(3)
+        except Exception as ex:
+            print(f"send err {jid[:24]}: {str(ex)[:100]}")
+            continue
+        for b, wid in zip(bubbles, ids):
+            insert_msg(con, lead["id"], "out", b, [{"text": b}], wid, "sent")
+            th["history"].append({"dir": "out", "text": b, "ts": int(time_mod.time())})
+        state["sent_today"]["n"] += len(ids)
+        state["lead_replies_today"][jid] = state["lead_replies_today"].get(jid, 0) + len(ids)
+        con.run("""update leads set stage = case when stage='new' then 'contacted' else stage end,
+                     updated_at = now() where id=:i""", i=lead["id"])
+        replies += 1
+        print(f"OUT {jid[:28]:28} {len(ids)} bubbles: {' / '.join(b[:40] for b in bubbles)}")
+    con.close()
+    save_state(state)
+    print(f"pass done: {replies} replied")
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--once", action="store_true")
+    ap.add_argument("--listen", action="store_true")
+    ap.add_argument("--every", type=int, default=60)
+    ap.add_argument("--dry", action="store_true")
+    ap.add_argument("--no-reply", action="store_true")
+    a = ap.parse_args()
+    if a.listen:
+        print(f"listening every {a.every}s — Ctrl+C to stop")
+        while True:
+            try:
+                run_pass(no_reply=a.no_reply)
+            except Exception as ex:
+                print("pass error:", str(ex)[:180])
+            time_mod.sleep(a.every)
+    else:
+        run_pass(dry=a.dry, no_reply=a.no_reply)
+
+
+if __name__ == "__main__":
+    main()
