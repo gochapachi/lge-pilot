@@ -1,9 +1,9 @@
-# DEPLOY STATE — LGE Pilot (updated 30-Aug-2026)
+# DEPLOY STATE — LGE Pilot (updated 31-Aug-2026)
 
 ## Live right now
 | Thing | URL / location | Status |
 |---|---|---|
-| Dashboard **staging v0.4.0-agentic** | https://pilot-staging.anagataitsolutions.in | ✅ 200, TLS |
+| Dashboard **staging v0.4.3** | https://pilot-staging.anagataitsolutions.in | ✅ 200, TLS, zero console errors |
 | Dashboard prod (old v0.3 UI, frozen until first e2e sale) | https://pilot.anagataitsolutions.in | ✅ 200, TLS |
 | Coolify panel | https://server.anagataitsolutions.in | ✅ 4.3.14 |
 | PostgREST API (same-origin) | https://pilot{,-staging}.anagataitsolutions.in/api | ✅ 200 |
