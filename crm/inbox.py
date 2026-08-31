@@ -20,6 +20,10 @@ STATE = os.path.join(HERE, "..", "secrets", "inbox_state.json")
 cfg = json.load(open(CREDS))
 EVO = cfg["evolution"]
 TEST_JID = "917705871046@s.whatsapp.net"
+# Owner's WhatsApp sends/receives under BOTH the phone JID and an anonymized
+# lid JID (verified 31-Aug: his "where did you get my number" + "explain more"
+# replies arrived only under the lid). Watch both everywhere.
+OWNER_LIDS = [l for l in cfg.get("owner_lids", ["259768245555447@lid"])]
 
 
 def fetch_all(max_pages=6, per=50):
@@ -49,7 +53,9 @@ def main():
         with urllib.request.urlopen(req, timeout=25) as r:
             d = json.loads(r.read().decode())
         batch = (d.get("messages") or {}).get("records", [])
-        recs.extend([m for m in batch if (m.get("key") or {}).get("remoteJid", "").startswith(num)])
+        recs.extend([m for m in batch
+                     if (m.get("key") or {}).get("remoteJid", "").startswith(num)
+                     or (m.get("key") or {}).get("remoteJid", "") in OWNER_LIDS])
         if len(batch) < 50:
             break
         page += 1
