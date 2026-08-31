@@ -100,6 +100,15 @@ max-width:92vw;text-align:center;box-shadow:0 6px 20px rgba(0,0,0,.4)}
 .mut{color:var(--mut)}.sm{font-size:.78rem}.ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}
 .bar{height:8px;border-radius:6px;background:var(--line);overflow:hidden}.bar i{display:block;height:100%;background:var(--acc)}
 .hide{display:none!important}
+/* v0.4.4 polish */
+.switch .slider{position:absolute;cursor:pointer;inset:0;background:var(--line);border-radius:99px;transition:.2s}
+.switch .slider:before{content:'';position:absolute;width:16px;height:16px;border-radius:50%;left:3px;top:3px;background:#fff;transition:.2s}
+.switch input:checked + .slider{background:var(--ok)}
+.switch input:checked + .slider:before{transform:translateX(18px)}
+.pill.p-closed_won,.pill.p-active{box-shadow:none}
+.drawer h2{display:flex;align-items:center;gap:8px}
+.msg{line-height:1.45}
+@media(max-width:767px){.msg{max-width:88%}}
 .empty{padding:26px 14px;text-align:center;color:var(--mut)}
 .empty .e{font-size:1.9rem;display:block;margin-bottom:6px}
 .empty .pri{margin-top:12px}
@@ -149,7 +158,7 @@ padding:14px 22px;z-index:15;box-shadow:0 8px 22px rgba(0,0,0,.45);font-weight:6
 
 <script>
 /* ================= config (pre-configured, zero setup) ================= */
-const VER="v0.4.3";
+const VER="v0.4.4";
 const LS=window.localStorage;
 const DEFAULT_URL=location.origin+'/api';
 const cfg={
@@ -299,7 +308,7 @@ async function saveLead(){
 }
 async function openLead(key){
   if(key.startsWith('crm:'))return openCrmLead(+key.slice(4));
-  const id=+key.split(':')[1]||+key;
+  const id=key.startsWith('ops:')?key.slice(4):(key.split(':')[1]||key);
   const l=(window._opsLeads||await opsLeadMap())[id]; if(!l)return;
   const [msgs,demos,pays,out]=await Promise.all([
     sb(`messages?lead_id=eq.${id}&order=created_at.asc&limit=100`),
@@ -315,6 +324,11 @@ async function openLead(key){
      <span class="pill p-${l.stage}">${stageLabel(l.stage)}</span></div>
    <div class="sm mut">${esc(l.niche||'')} · ${esc(l.city||'')} · ${esc(l.phone||'no phone')} · src:${esc(l.source)}</div>
    ${l.phone&&waLink(l.phone)?`<a class="btn sm" style="display:inline-block;margin-top:8px" href="${waLink(l.phone)}" target="_blank">💬 WhatsApp</a>`:''}
+   <div class="ai"><div class="aihead"><span>🤖</span><b>AI autopilot</b>
+     <label class="switch"><input type="checkbox" ${l.autopilot?'checked':''} onchange="toggleOpsAuto('${id}',this.checked)"><span class="slider"></span></label></div>
+     <label>Your steering for this lead</label>
+     <textarea id="ops_steer" placeholder="e.g. push the ₹15k trial, he is price-shy — send demo first">${esc(l.steering||'')}</textarea>
+     <button class="sm" style="margin-top:8px" onclick="saveOpsSteer('${id}')">Save steering</button></div>
    ${l.notes?`<div class="sm" style="margin:8px 0">📝 ${esc(l.notes)}</div>`:''}
    <label>Next action</label>
    <div class="row wrap"><input id="na_txt" value="${esc(l.next_action||'')}" placeholder="e.g. send custom demo">
@@ -430,6 +444,8 @@ async function sendChunks(id){
   else toast('saved (bridge not set)');
   await sb('events',{method:'POST',body:JSON.stringify({type:'msg_sent',lead_id:id,payload:{text:parts[0].slice(0,40)}})});
 }
+async function toggleOpsAuto(id,onv){await sb(`leads?id=eq.${id}`,{method:'PATCH',body:JSON.stringify({autopilot:onv})});toast(onv?'autopilot ON — bridge will reply':'autopilot OFF');}
+async function saveOpsSteer(id){const t=document.getElementById('ops_steer').value;await sb(`leads?id=eq.${id}`,{method:'PATCH',body:JSON.stringify({steering:t})});toast('steering saved');}
 async function logInbound(id){const b=prompt('What did they say?');if(!b)return;
   await sb('messages',{method:'POST',body:JSON.stringify({lead_id:id,direction:'in',kind:'text',body:b,status:'received'})});
   await sb(`leads?id=eq.${id}`,{method:'PATCH',body:JSON.stringify({stage:'replied',score:50})});toast('logged')}
@@ -456,8 +472,8 @@ async function viewInbox(){
   return Object.keys(byLead).length?Object.entries(byLead).map(([id,ms])=>{
     const l=ls.find(x=>x.id==id)||{};const last=ms[0];
     return `<div class="card click" style="margin-bottom:8px" onclick="openLead('ops:${id}')">
-      <div class="row"><b style="flex:2">${esc(l.business||l.name)}</b><span class="sm mut">${fmt(last.created_at)}</span></div>
-      <div class="sm">${last.direction==='in'?'←':'→'} ${esc((last.chunks?.[0]?.text||last.body||'').slice(0,60))}</div></div>`}).join('')
+      <div class="row"><b style="flex:2">${esc(l.business||l.name)}</b><span class="sm mut" style="white-space:nowrap">${fmt(last.created_at)}</span></div>
+      <div class="sm" style="display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden">${last.direction==='in'?'←':'→'} ${esc((last.chunks?.[0]?.text||last.body||'').slice(0,60))}</div></div>`}).join('')
     :empty('💬','No conversations yet.<br>Once outreach starts, replies land here.');
 }
 
@@ -661,7 +677,7 @@ function viewConn(){
     <input id="s_bridge" value="${esc(cfg.bridge)}" placeholder="https://…/webhook/…">
     <button class="sm" style="margin-top:10px;width:100%" onclick="saveCfg()">Save overrides</button>
   </details>
-  <p class="sm mut" style="margin-top:10px">${VER}</p></div>`;
+  <p class="sm mut" style="margin-top:10px">${VER} · bridge ✓</p></div>`;
 }
 async function testConn(){
   const out=document.getElementById('conn_stat');out.textContent='testing…';out.className='sm mut';
