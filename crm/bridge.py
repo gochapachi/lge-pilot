@@ -60,9 +60,9 @@ TEST_LEAD_HINTS = {"917705871046", "259768245555447"}
 OPT_OUT = ("nahi chahiye", "mat bhejo", "stop", "not interested", "no thanks",
            "remove karo", "unsubscribe", "pareshan", "blok", "block kar")
 QUIET_IST = (dtime(21, 30), dtime(8, 0))   # replies deferred inside this window
-MAX_PER_LEAD = 4
-MAX_GLOBAL = 40
-MIN_GAP_S = 45          # anti-burst: min seconds between auto-reply cycles per thread
+MAX_PER_LEAD = int(_env("BRIDGE_MAX_PER_LEAD", "4"))
+MAX_GLOBAL = int(_env("BRIDGE_MAX_GLOBAL", "40"))
+MIN_GAP_S = int(_env("BRIDGE_MIN_GAP_S", "45"))          # anti-burst: min seconds between auto-reply cycles per thread
 SYSTEM = """You are the AI front-desk assistant for 'Local Growth Engine' (Kanpur), replying
 on the business WhatsApp of Sanjeev. You talk to small-business owners (clinic/salon/shop owners)
 in casual Hinglish. Rules:
@@ -81,16 +81,24 @@ def ist_now():
 
 
 def load_state():
+    """BRIDGE_EPOCH (unix ts, env) is the reset lever: bumping it wipes state
+    (fresh conversations) and the ingest loop filters out older messages."""
+    epoch = os.environ.get("BRIDGE_EPOCH") or ""
+    s = None
     if os.path.exists(STATE_PATH):
         s = json.load(open(STATE_PATH))
-        # sanitize: any NULL-text history entries from a corrupt prior state
-        for th in (s.get("threads") or {}).values():
-            for h in (th.get("history") or []):
-                if h.get("text") is None:
-                    h["text"] = ""
-        return s
-    return {"seen": {}, "threads": {}, "sent_today": {"date": "", "n": 0},
-            "lead_replies_today": {}, "stopped": {}, "_push": {}}
+        if epoch and s.get("_epoch") != epoch:
+            s = None  # epoch bump = full reset
+    if s is None:
+        s = {"seen": {}, "threads": {}, "sent_today": {"date": "", "n": 0},
+             "lead_replies_today": {}, "stopped": {}, "_push": {}}
+    # sanitize: any NULL-text history entries from a corrupt prior state
+    for th in (s.get("threads") or {}).values():
+        for h in (th.get("history") or []):
+            if h.get("text") is None:
+                h["text"] = ""
+    s["_epoch"] = epoch
+    return s
 
 
 def save_state(s):
@@ -120,6 +128,7 @@ def _evo_cfg(cfg):
 
 def evo_page_inbound(cfg, max_pages=8):
     """All outside-sender text messages from the recent-messages index."""
+    _epoch = int(os.environ.get("BRIDGE_EPOCH") or 0)
     out = []
     for page in range(1, max_pages + 1):
         req = urllib.request.Request(
@@ -139,8 +148,11 @@ def evo_page_inbound(cfg, max_pages=8):
             txt = msg.get("conversation") or (msg.get("extendedTextMessage") or {}).get("text", "") or ""
             if not txt.strip():
                 continue
+            ts = int(m.get("messageTimestamp") or 0)
+            if _epoch and ts < _epoch:
+                continue  # older than reset boundary — ignore
             out.append({"jid": jid, "wa_id": k.get("id"), "text": txt.strip(),
-                        "ts": int(m.get("messageTimestamp") or 0),
+                        "ts": ts,
                         "push": m.get("pushName") or ""})
         if len(batch) < 50:
             break
