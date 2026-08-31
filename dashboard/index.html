@@ -149,7 +149,7 @@ padding:14px 22px;z-index:15;box-shadow:0 8px 22px rgba(0,0,0,.45);font-weight:6
 
 <script>
 /* ================= config (pre-configured, zero setup) ================= */
-const VER="v0.4.2";
+const VER="v0.4.3";
 const LS=window.localStorage;
 const DEFAULT_URL=location.origin+'/api';
 const cfg={
@@ -214,8 +214,9 @@ async function loadToday(){
     sb('crm_lead?select=stage').catch(()=>[]),
     sb('crm_lead?select=id,next_action_at&autopilot=eq.true').catch(()=>[])]);
   const auto=autopilot||[];
-  const msgsToday=await sb(`messages?select=id,direction,created_at&created_at=gte.${new Date().setHours(0,0,0,0)}`).catch(()=>[]);
-  const pays=await sb('payments?select=amount,status&created_at=gte.'+new Date().setHours(0,0,0,0)).catch(()=>[]);
+  const ISO0=new Date().setHours(0,0,0,0);
+  const msgsToday=await sb(`messages?select=id,direction,created_at&created_at=gte.${new Date(ISO0).toISOString()}`).catch(()=>[]);
+  const pays=await sb('payments?select=amount,status&created_at=gte.'+new Date(ISO0).toISOString()).catch(()=>[]);
   const paidToday=pays.filter(p=>p.status==='paid').reduce((s,p)=>s+ +p.amount,0);
   const sentToday=msgsToday.filter(m=>m.direction==='out').length;
   const inToday=msgsToday.filter(m=>m.direction==='in').length;
