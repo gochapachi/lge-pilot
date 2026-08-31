@@ -15,26 +15,35 @@
 
 ---
 
-## 0) Stage machine (mirrors crm_lead.stage)
+## 0) The Phase Ladder (STRICT — owner-enforced order, guards in code)
 
 ```
-new → contacted → replied → probing → demo_sent → negotiating → closed_won | closed_lost
-                                                ↑______(D2/D3 nudges)____|
+opening → rapport → probing → need_gen → solutions → urgency → sales/payment
+   (crack)  (warm)   (DQ1-6)  (reflect+quantify) (pitch+demo) (seats/gap) (link only here)
 ```
 
-| Stage | Owner of next move | Goal | Exit trigger |
-|---|---|---|---|
-| `new`→`contacted` | AI sends D1 intro (source-specific hook, no pitch) | earn the first reply | any reply |
-| `contacted` | prospect | warm up: who they are, what they handle | they ask "aur ye kaise?" or 24h idle |
-| `probing` | AI | **discovery (below)** — 6 answers minimum | needs → demo earned |
-| `demo_sent` | AI | asset + their reaction | "ye kaise milega?" / price ask |
-| `negotiating` | AI | objections → urgency → tiered close | "haan" → pay link |
-| `closed_won` | system | onboarding chat (day-1 expectations) | — |
+| Phase | DB stage | Goal | FORBIDDEN | Exit trigger |
+|---|---|---|---|---|
+| `opening` | contacted | crack the ice: warm ack, 1 soft human question. NO business-pain questions | pitch, demo, price, DQs | their substantive reply → `rapport` |
+| `rapport` | replied | be a human first: mirror, empathy, their world. THEN first light DQ1 woven in | pitch, demo, price | rapport exchange done → ask DQ1 → `probing` |
+| `probing` | probing | DQ1→DQ6, ONE per turn, mirror each answer | pitch, demo, link | DQ1–4 answered → `need_gen` |
+| `need_gen` | probing | reflect pains back + quantify cost of inaction (their words, their numbers) + agreement check | demo, price, link | agreement ("haan/sahi") → `solutions` |
+| `solutions` | demo_sent | pitch mapped ONLY to their stated pains + blank demo asset + walkthrough | price push, link | reaction / "kaise milega" → `urgency` |
+| `urgency` | negotiating | ethical urgency: seats, gap-rot, founding-rate. smart choices (A/B) | link until "haan"-class intent | intent signal → `sales` |
+| `sales` | negotiating | payment link + confirmation. (test mode in drill) | — | payment → `closed_won` |
+| any | closed_lost | opt-out / hard no | everything | muted forever |
 
-**Follow-up cadence (every stage, logged):** D2 +1 day (soft value nudge) → D3 +2d
+**Ladder guards (code-enforced in chatflow.py):**
+- Blank demo asset may appear ONLY in `solutions` phase or later.
+- Payment link may appear ONLY in `sales` phase. No exceptions, not even if they ask price early
+  (answer price honestly in `urgency` framing, but the *link* waits).
+- Objection counters work in `solutions`+ phases; in `probing`/`need_gen` early-objections get
+  acknowledged + phase continues (one exception: `number_source` & opt-out handled anywhere).
+- Follow-ups repeat the CURRENT phase's move, never the next phase's.
+
+**Follow-up cadence (per phase, logged):** D2 +1 day (soft value nudge) → D3 +2d
 (easy- choice question) → D5 break-up ("aakhri message… 2 hafte baad yaad dilaunga").
-Max 3 touches per prospect after any reply; "no"/opt-out → log `stage='closed_lost'`,
-`stopped` flag — never message again.
+Max 3 touches after any reply; "no"/opt-out → `stage='closed_lost'`, `stopped` — never again.
 
 ---
 

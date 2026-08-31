@@ -86,79 +86,159 @@ def fu_count(lead):
 
 # ---------- the turn builder ----------
 
+PHASES = ["opening", "rapport", "probing", "need_gen", "solutions", "urgency", "sales"]
+PHASE_TO_STAGE = {"opening": "contacted", "rapport": "replied", "probing": "probing",
+                  "need_gen": "probing", "solutions": "demo_sent",
+                  "urgency": "negotiating", "sales": "negotiating"}
+STAGE_TO_PHASE = {v: k for k, v in PHASE_TO_STAGE.items()}
+
+
+def phase_of(lead):
+    """Phase lives in tags['phase']; default from DB stage for old leads."""
+    p = tag_kv(lead.get("tags"), "phase")
+    if p in PHASES:
+        return p
+    return STAGE_TO_PHASE.get(lead.get("stage") or "contacted", "opening")
+
+
 def next_turn(lead, history):
-    """history: oldest→newest [{dir:'in'|'out', text:str}]. Returns dict:
-    {bubbles, stage, tags, notes, next_action_at_days, kind, meta}"""
-    stage = lead.get("stage") or "contacted"
+    """history oldest→newest. Returns {bubbles, fallback, stage, tags, phase,
+    kind, ask_dq, echo, objection, next_action_at_days, meta}."""
+    phase = phase_of(lead)
     tags = list(lead.get("tags") or [])
     answered = answered_dqs(tags)
     last_in = next((h for h in reversed(history) if h["dir"] == "in"), None)
     text = (last_in or {}).get("text", "")
     low = text.lower()
     business = (lead.get("business") or lead.get("name") or "aapka business").split()[0]
-    niche = lead.get("niche") or "default"
+    intent_words = ("haan", "ha", "yes", "ok", "theek", "chalo", "karo", "shuru",
+                    "bhejo", "bhej do", "kaise milega", "kya karte")
 
-    # 0) opt-out anywhere → ack + mute (never pitch)
+    # opt-out & unknown-number questions: handled in ANY phase
     if is_opt_out(text):
-        return {"bubbles": ["theek hai ji, aage koi message nahi aayega 🙏 sab theek — shubhkamnayein!"],
-                "stage": "closed_lost", "tags": tags, "kind": "optout_ack",
-                "next_action_at_days": None, "meta": {"optout": True}}
+        return {"bubbles": ["theek hai ji, aage koi message nahi aayega 🙏 shubhkamnayein!"],
+                "stage": "closed_lost", "tags": tags, "phase": "closed_lost",
+                "kind": "optout_ack", "next_action_at_days": None, "meta": {"optout": True}}
+    if detect_objection(text) == "number_source":
+        t = objection_turn("number_source", business, lead, answered)
+        t["phase"] = phase
+        return t
 
-    # 1) objections override flow
-    obj = detect_objection(text)
-    answered_all = all(d in answered for d in (1, 2, 3, 4))
+    # ---------- PHASE LADDER (strict order, guards) ----------
 
-    if obj and stage in ("probing", "demo_sent", "negotiating", "replied", "contacted"):
-        turn = objection_turn(obj, business, lead, answered)
-        if turn:
-            return turn
+    # OPENING: crack the ice. warm ack + one soft HUMAN question. no business, no pitch.
+    if phase == "opening":
+        if _substantive(text):
+            # their first substantive reply → advance to rapport, mirror + human q
+            return _phased(None,
+                [mirror(text), "waise aaj ka din kaisa gaya — kaam mein maza aa raha hai ya routine chal raha hai? 🙂"],
+                "rapport", tags, "opening_ack", echo=text)
+        return _phased(None,
+            ["namaste 🙏 main Sanjeev ji ki team se — aapka business Google pe dekha, achha lag raha hai",
+             "bas aapka din kaisa ja raha hai?"],
+            "opening", tags, "opening_re", echo=text)
 
-    # 2) discovery loop (one question per turn)
-    if not answered_all:
+    # RAPPORT: human exchange. exit when warm exchange done → weave DQ1
+    if phase == "rapport":
+        if re.search(r"(achha|theek|badhiya|maza|busy|thik|thik hai|chalt[aā])", low):
+            return _phased(None,
+                [mirror(text, 70), "sunno, ek kaam ka sawaal poochhoon? aapke customers abhi aate kaise hain — Google, walk-in, ya jaan-pehchaan se?"],
+                "probing", tags, "rapport_to_probing", echo=text, ask_dq=1)
+        return _phased(None,
+            [mirror(text, 70), "aur aap? sab badhiya? 🙂"],
+            "rapport", tags, "rapport_warm")
+
+    # PROBING: DQ loop, one per turn
+    if phase == "probing":
+        if all(d in answered for d in (1, 2, 3, 4)):
+            return _need_gen_turn(text, business, tags, echo=text)
         nxt = next((d for d in DQ_ORDER if d not in answered), None)
-        return {"bubbles": None,  # phrased by LLM: warm mirror + DQS[nxt]
-                "fallback": [mirror(text), DQS[nxt]],
-                "stage": "probing" if stage in ("contacted", "replied") else stage,
-                "tags": tags, "kind": "discovery", "ask_dq": nxt, "echo": text[:160],
-                "next_action_at_days": 1}
+        return _phased(None, [mirror(text), DQS[nxt]], "probing",
+                       set_tag(tags, f"dq{nxt}", "asked"), "discovery",
+                       echo=text, ask_dq=nxt)
 
-    # 3) discovery done → tailored pitch → demo ask
-    if stage in ("contacted", "replied", "probing"):
-        pain = tag_kv(tags, "pain") or "Google pe reviews/replies ka gap"
-        return {"bubbles": None,
-                "fallback": [
-                    f"dekh liya aapka setup {business} ka 🙏 — jo aapne bataya ({pain}), wahi sabse pehle fix hota hai",
-                    "main aapke liye ek chhota demo bana ke bhejta hoon — blank template abhi, final aapke naam pe banega",
-                    f"ye raha demo 👇 {DEMO_VIDEO_NOTE}\n{BLANK_DEMO.get(lead.get('niche'), BLANK_DEMO['default'])}"],
-                "stage": "demo_sent", "tags": set_tag(tags, "pain", pain), "kind": "pitch_demo",
-                "next_action_at_days": 1}
+    # NEED_GEN: reflect + quantify + agreement check (no demo, no price)
+    if phase == "need_gen":
+        if re.search(r"\b(haan|sahi|ha|bilkul|theek|yes|done|ok)\b", low):
+            return _phased(None,
+                ["to chaliye, pehle aapke kaam ka ek chhota sa proof dikhata hoon — blank template abhi, final aapke naam pe",
+                 "dekhiye ye 👇 " + BLANK_DEMO.get(lead.get("niche"), BLANK_DEMO["default"])],
+                "solutions", tags, "need_to_solutions")
+        return _phased(None,
+            ["dekh rahe hain — " + (tag_kv(tags, "pain") or "jo bataya aapne") + ", aur time bhi nahi — ye combo hi asli dikkat hai",
+             "sach kahun? ye gap har mahine kuch na kuch cost karta hai — naye customer, unreplied reviews, purani listing",
+             "sahi kah raha hoon main? 🙂"],
+            "need_gen", tags, "need_gen")
 
-    # 4) demo sent → reaction/next step
-    if stage == "demo_sent":
-        return {"bubbles": None,
-                "fallback": ["dekha demo? kaisa laga — kaafi simple lagta hai ya kuch aur bhi chahiye?",
-                             "jo pasand aaya wo hi aapke business ke naam pe har hafte automatic chalega"],
-                "stage": "demo_sent", "tags": tags, "kind": "demo_follow",
-                "next_action_at_days": 1}
+    # SOLUTIONS: pitch mapped to their pains + blank demo + walkthrough
+    if phase == "solutions":
+        if re.search(r"\b(kaise|kab|milega|chalu|shuru|price|kitn|pasand|achha|acha|theek|badhiya|sahi|dekha|dek liya|dekh liya)\b", low):
+            return _phased(None,
+                ["aapke jo pains bataye the — usi ke hisaab se: reviews ka same-day reply, bura review pehle aapke paas private, weekly blogs + posts, aur ye WhatsApp brain",
+                 "system aapke naaam pe chalta hai, aapka time zero",
+                 "ab ek baat — is mahine main sirf 4 clinics onboard kar raha hoon, 2 seats bachi hain — aage badhein? 🙂"],
+                "urgency", tags, "sol_to_urgency")
+        return _phased(None,
+            ["demo dekh ke kaisa laga — kaunsa hisaab aapke kaam ka laga?",
+             "jo hisaab pasand aaya wahi aapke business ke naam pe har hafte automatic chalega"],
+            "solutions", tags, "solutions_follow")
 
-    # 5) negotiating → close ladder (tier choice → link confirmation)
-    if stage == "negotiating":
-        return {"bubbles": None,
-                "fallback": ["to pakka karein? trial month ₹15,000 (sab setup included) — 'haan' likhiye, link isi chat pe aa jayega",
-                             "ya phir 15 din ka dekh lena, pasand na aaye to seedha bolt dena 🙏"],
-                "stage": "negotiating", "tags": tags, "kind": "close",
-                "next_action_at_days": 1}
+    # URGENCY: seats/gap/founding framing + A/B choices (NO link)
+    if phase == "urgency":
+        if re.search(r"\b(haan|ha|chalo|karo|shuru|kar do|bhej|link|payment|kaise (milega|pay))\b", low):
+            return _phased(None,
+                ["badhiya 🙏 phir ab bas ek kaam — payment link isi chat pe bhej deta hoon, 2 min ka kaam",
+                 "link aa raha hai…"],
+                "sales", tags, "urgency_to_sales")
+        return _phased(None,
+            ["ek smart choice dena chahta hoon 🙂 (a) trial month ₹15,000 sab setup included, ya (b) pehle 15 din ka dekh lena, pasand na aaye to seedha boliye",
+             "aur seats is mahine sirf 2 bachi hain — jo clinic pehle le, Google pe wahi pehle dikhega"],
+            "urgency", tags, "urgency")
 
-    # 6) won → onboarding
-    if stage == "closed_won":
-        return {"bubbles": ["badhai ho {b} family me swagat 🎉 kal se setup shuru — day 1 me sab live, review ka pehla AI reply aapke dashboard me dikhega".format(b=business)],
-                "stage": "closed_won", "tags": tags, "kind": "onboard",
-                "next_action_at_days": 1}
+    # SALES: link + confirmation
+    if phase == "sales":
+        return _phased(None,
+            ["link ready: trial ₹15,000 (test mode in drill — real paisa nahi katenga)",
+             "payment hone ke baad hi 'won' mark hota hai aur prod pe sab live 🚀"],
+            "sales", tags, "sales_link")
 
-    # fallback: keep thread alive politely
+    if phase == "closed_lost":
+        return {"bubbles": ["theek hai ji 🙏"], "stage": "closed_lost", "tags": tags,
+                "phase": "closed_lost", "kind": "muted", "next_action_at_days": None}
+
+    if phase == "closed_won":
+        return _phased(None,
+            ["badhai ho — {b} family me swagat 🎉 day 1 me sab live".format(b=business)],
+            "closed_won", tags, "onboard")
+
+    # fallback: stay in phase
+    return _phased(None, ["ji boliye, main hoon 🙂"], phase, tags, "clarify")
+
+
+def _substantive(text):
+    """More than a bare greeting or lone 'haan/ok'."""
+    t = (text or "").strip().lower()
+    if len(t) < 4:
+        return False
+    return not re.fullmatch(r"(ha+|hm+|ok+|yes+|theek|achha|sahi|k)[\s!.]*", t)
+
+
+def _phased(bubbles, fallback, phase, tags, kind, echo=None, ask_dq=None, objection=None,
+            next_action_at_days=1, meta=None):
+    return {"bubbles": bubbles, "fallback": fallback, "stage": PHASE_TO_STAGE.get(phase),
+            "tags": tags, "phase": phase, "kind": kind, "echo": echo, "ask_dq": ask_dq,
+            "objection": objection, "next_action_at_days": next_action_at_days, "meta": meta or {}}
+
+
+def _need_gen_turn(text, business, tags, echo=None):
+    pain = tag_kv(tags, "pain") or tag_kv(tags, "dq3") or "naye customer nahi aa rahe"
     return {"bubbles": None,
-            "fallback": ["ji boliye, main hoon 🙂"],
-            "stage": stage, "tags": tags, "kind": "clarify", "next_action_at_days": 1}
+            "fallback": [
+                'to suno — aapne kaha "' + (tag_kv(tags, "dq3") or "naye customer nahi aa rahe")[:40] + '" aur time bhi nahi hai sab sambhalne ka',
+                "Google pe jo gap dikh raha hai — unreplied reviews, purani listing — wahi competitor ko naye customer la raha hai",
+                "sahi kah raha hoon main? 🙂"],
+            "stage": "probing", "tags": set_tag(tags, "pain", pain[:30]), "phase": "need_gen",
+            "kind": "need_gen", "echo": echo, "next_action_at_days": 1}
 
 
 def mirror(text, limit=90):
