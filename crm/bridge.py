@@ -277,7 +277,7 @@ def run_pass(dry=False, no_reply=False):
         if not th.get("history"):
             rows = con.run("select direction, coalesce(body,''), extract(epoch from created_at)::bigint "
                            "from messages where lead_id=:l order by created_at desc limit 40", l=lead["id"])
-            th["history"] = [{"dir": r[0], "text": r[1], "ts": int(r[2])} for r in reversed(rows)]
+            th["history"] = [{"dir": r[0], "text": r[1] or "", "ts": int(r[2])} for r in reversed(rows)]
         th.setdefault("history", []).append({"dir": "in", "text": m["text"], "ts": m["ts"]})
         th["history"] = th["history"][-40:]
         if not dry:
