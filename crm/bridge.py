@@ -415,8 +415,10 @@ def main():
         while True:
             try:
                 run_pass(no_reply=a.no_reply)
-            except Exception as ex:
-                print("pass error:", str(ex)[:180], flush=True)
+            except Exception:
+                import traceback
+                print("pass error:", flush=True)
+                traceback.print_exc()
             time_mod.sleep(a.every)
     else:
         run_pass(dry=a.dry, no_reply=a.no_reply)
