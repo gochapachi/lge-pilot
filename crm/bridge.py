@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python -u
 """bridge.py — WhatsApp reply bridge for the LGE pilot (the NO-N8N inbox brain).
 
 Polls Evolution API for inbound WhatsApp messages, maps each chat to an ops
@@ -21,7 +21,7 @@ Guardrails (hard-coded, safety first):
   - group chats / status      → skipped
   - lid JIDs (no phone digits)→ logged for owner, no direct send possible
 """
-import argparse, json, os, re, sys, time as time_mod, urllib.request, urllib.error
+import argparse, fcntl, json, os, re, sys, time as time_mod, urllib.request, urllib.error
 from datetime import datetime, timezone, timedelta, time as dtime
 
 import pg8000.native
@@ -309,6 +309,14 @@ def run_pass(dry=False, no_reply=False):
 
 
 def main():
+    # single-flight lock: two concurrent passes would corrupt bridge_state.json
+    lock_path = STATE_PATH + ".lock"
+    lock_fd = open(lock_path, "w")
+    try:
+        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        print("another bridge pass is running — exiting")
+        sys.exit(0)
     ap = argparse.ArgumentParser()
     ap.add_argument("--once", action="store_true")
     ap.add_argument("--listen", action="store_true")
@@ -317,12 +325,12 @@ def main():
     ap.add_argument("--no-reply", action="store_true")
     a = ap.parse_args()
     if a.listen:
-        print(f"listening every {a.every}s — Ctrl+C to stop")
+        print(f"listening every {a.every}s — Ctrl+C to stop", flush=True)
         while True:
             try:
                 run_pass(no_reply=a.no_reply)
             except Exception as ex:
-                print("pass error:", str(ex)[:180])
+                print("pass error:", str(ex)[:180], flush=True)
             time_mod.sleep(a.every)
     else:
         run_pass(dry=a.dry, no_reply=a.no_reply)
