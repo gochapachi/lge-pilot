@@ -2,9 +2,10 @@
 
 ## Now (this week)
 - [ ] **Owner: open staging on phone** → try Sales → lead → 🤖 AI cockpit (steering + autopilot)
-- [ ] **D1 send**: `python3 outreach-sender/sender.py --send --limit 1` (goes to owner's own WhatsApp = test lead 10421)
+- [ ] **OWNER 10-SEC ACTION (blocking):** n8n → workflow **"Anagata AIRM - Multi-Agent Sales"** → settings → enable **"Available in MCP"**. Then I'll apply the scripted FreeLLM swap (`crm/AIRM-provider-fix.md`) — Ollama Cloud is exhausted, AIRM WhatsApp auto-reply sends rate-limit errors.
+- [ ] **D1 send (done 30-Aug)** → owner replied "where did you get my number" → answered via Evolution (done). Continue drill if owner replies again.
 - [ ] Pilot drill e2e on 10421: reply → demo → Cashfree link → closed_won → **exit gate**
-- [ ] Vision QA round 2 on live staging after v0.4.1 deploy
+- [ ] Vision QA round 3 on live staging after polish (v0.4.2) — search/FAB/crash verified; re-confirm inline
 - [ ] n8n reply bridge (webhook → messages table) so replies land in Inbox automatically
 
 ## Next (after exit gate)
