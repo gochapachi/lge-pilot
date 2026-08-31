@@ -3,8 +3,8 @@
 ## Now (this week)
 - [ ] **Owner: open staging on phone** → try Sales → lead → 🤖 AI cockpit (steering + autopilot)
 - [ ] **OWNER 10-SEC ACTION (blocking):** n8n → workflow **"Anagata AIRM - Multi-Agent Sales"** → settings → enable **"Available in MCP"**. Then I'll apply the scripted FreeLLM swap (`crm/AIRM-provider-fix.md`) — Ollama Cloud is exhausted, AIRM WhatsApp auto-reply sends rate-limit errors.
-- [ ] **Drill state (31-Aug):** D1 sent 30-Aug → owner asked "where did you get my number" → answered (logged) → **D2 nudge sent 31-Aug 07:15 IST** (demo offer + ₹15k trial + opt-out, 4 bubbles). Owner action: reply "bhej do" on WhatsApp → demo link goes out.
-- [ ] Pilot drill e2e on 10421: **D2 done ✅** → demo → Cashfree link → closed_won → **exit gate**. Waiting on owner reply.
+- [ ] **Drill state (31-Aug):** D1 sent 30-Aug → "where did you get my number" answered → **D2 nudge sent 31-Aug 07:15 IST** → **owner replied "explain more" 07:35 IST** → **demo explanation sent 07:48 IST** (system walkthrough + live samples: AI review reply + weekly Google post + ₹15k trial + demo call ask). ⚠️ Owner replies land under lid JID `259768245555447@lid`, NOT the phone JID — inbox.py must watch both.
+- [ ] Pilot drill e2e on 10421: reply ✅ → explanation ✅ → **next: owner picks live demo call ya WhatsApp continue → Cashfree test link → closed_won → exit gate**.
 - [x] **Vision QA round 3 on live staging (31-Aug):** pass — search/FAB/crash/cockpit all verified; **1 real bug found+fixed+deployed**: Today KPIs (msgs/replies/paid) silently always 0 (epoch-ms filter → 400s swallowed); v0.4.3 live, zero console errors, KPIs verified rendering (1331 pipeline). UI activity feed shows D2 row ✅
 - [ ] n8n reply bridge (webhook → messages table) so replies land in Inbox automatically
 
