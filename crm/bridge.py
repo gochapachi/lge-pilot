@@ -30,12 +30,29 @@ import chatflow
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CREDS_PATH = os.path.join(HERE, "..", "secrets", "credentials.json")
-STATE_PATH = os.path.join(HERE, "..", "secrets", "bridge_state.json")
+STATE_PATH = os.environ.get("BRIDGE_STATE") or os.path.join(HERE, "..", "secrets", "bridge_state.json")
 
-DB = dict(user="root", host="213.199.62.248", port=5434, database="lge", password="Itachi933641")
-LLM = {"base_url": "https://freellm.anagataitsolutions.in/v1",
-       "api_key": "freellmapi-92711a0508c8175cce421318cdf36de3f88c968b841855ae",
-       "model": "deepseek-v4-flash"}
+import json as _json, os as _os
+def _env(k, d=None):
+    return _os.environ.get(k) or d
+_CREDS = None
+def _creds():
+    global _CREDS
+    if _CREDS is None:
+        try:
+            _CREDS = _json.load(open(CREDS_PATH))
+        except Exception:
+            _CREDS = {"evolution": {}, "owner_whatsapp": "917705871046"}
+    return _CREDS
+
+DB = dict(user=_env("DB_USER", "root"),
+          host=_env("DB_HOST", "213.199.62.248"),
+          port=int(_env("DB_PORT", "5434")),
+          database=_env("DB_NAME", "lge"),
+          password=_env("DB_PASSWORD", "Itachi933641"))
+LLM = {"base_url": _env("LLM_BASE_URL", "https://freellm.anagataitsolutions.in/v1"),
+       "api_key": _env("LLM_API_KEY", "freellmapi-92711a0508c8175cce421318cdf36de3f88c968b841855ae"),
+       "model": _env("LLM_MODEL", "deepseek-v4-flash")}
 
 # Drill test lead: ops leads.id + every JID it might wear (phone + lid)
 TEST_LEAD_HINTS = {"917705871046", "259768245555447"}
@@ -87,14 +104,22 @@ def norm_phone(raw):
 
 # ---------- Evolution ----------
 
+def _evo_cfg(cfg):
+    """Env vars win (container); credentials.json fallback (local)."""
+    e = cfg.get("evolution") or {}
+    return {"base_url": _env("EVO_BASE_URL", e.get("base_url")),
+            "api_key": _env("EVO_API_KEY", e.get("api_key")),
+            "instance": _env("EVO_INSTANCE", e.get("instance"))}
+
+
 def evo_page_inbound(cfg, max_pages=8):
     """All outside-sender text messages from the recent-messages index."""
     out = []
     for page in range(1, max_pages + 1):
         req = urllib.request.Request(
-            f"{cfg['evolution']['base_url'].rstrip('/')}/chat/findMessages/{cfg['evolution']['instance']}",
+            f"{_evo_cfg(cfg)['base_url'].rstrip('/')}/chat/findMessages/{_evo_cfg(cfg)['instance']}",
             data=json.dumps({"page": page, "offset": 50}).encode(),
-            headers={"apikey": cfg["evolution"]["api_key"], "Content-Type": "application/json"},
+            headers={"apikey": _evo_cfg(cfg)["api_key"], "Content-Type": "application/json"},
             method="POST")
         with urllib.request.urlopen(req, timeout=30) as r:
             d = json.loads(r.read().decode())
@@ -120,9 +145,9 @@ def evo_page_inbound(cfg, max_pages=8):
 def evo_send_text(cfg, number, text):
     body = json.dumps({"number": str(number), "text": text}).encode()
     req = urllib.request.Request(
-        f"{cfg['evolution']['base_url'].rstrip('/')}/message/sendText/{cfg['evolution']['instance']}",
+        f"{_evo_cfg(cfg)['base_url'].rstrip('/')}/message/sendText/{_evo_cfg(cfg)['instance']}",
         data=body, method="POST",
-        headers={"apikey": cfg["evolution"]["api_key"], "Content-Type": "application/json"})
+        headers={"apikey": _evo_cfg(cfg)["api_key"], "Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=30) as r:
         out = json.load(r)
     return (out.get("key") or {}).get("id", "?")
@@ -135,12 +160,19 @@ def lead_row(r):
              autopilot=r[5], is_test=r[6])
     if len(r) > 7:
         d["tags"] = r[7]
+    if len(r) > 8:
+        d["phone"] = r[8]
     return d
 
 
 def fetch_lead(con, lid):
-    r = con.run("select id, name, business, stage, coalesce(steering,''), autopilot, is_test, coalesce(tags,'{}') "
-                "from leads where id=:i", i=lid)[0]
+    rows = con.run("select id, name, business, stage, coalesce(steering,''), autopilot, is_test, "
+                   "coalesce(tags,'{}'), coalesce(phone,'') from leads where id=:i", i=lid)
+    if not rows:
+        return None
+    r = rows[0]
+    return dict(id=r[0], name=r[1], business=r[2], stage=r[3], steering=r[4],
+                autopilot=r[5], is_test=r[6], tags=r[7], phone=r[8])
 
 
 def ops_lead_for(con, jid, state, push=""):
@@ -231,11 +263,18 @@ def run_pass(dry=False, no_reply=False):
     for m in evo_page_inbound(cfg):
         if m["wa_id"] in state["seen"]:
             continue
+        if con.run("select 1 from messages where wa_id=:w", w=m["wa_id"]):
+            state["seen"][m["wa_id"]] = 1
+            continue  # already in DB (prior run/backfill) — restart-safe
         jid = m["jid"]
         lead = ops_lead_for(con, jid, state)
         state["seen"][m["wa_id"]] = 1
         state.setdefault("_push", {})[jid] = m["push"] or state.get("_push", {}).get(jid, "")
         th = state["threads"].setdefault(jid, {"ops_id": str(lead["id"])})
+        if not th.get("history"):
+            rows = con.run("select direction, coalesce(body,''), extract(epoch from created_at)::bigint "
+                           "from messages where lead_id=:l order by created_at desc limit 40", l=lead["id"])
+            th["history"] = [{"dir": r[0], "text": r[1], "ts": int(r[2])} for r in reversed(rows)]
         th.setdefault("history", []).append({"dir": "in", "text": m["text"], "ts": m["ts"]})
         th["history"] = th["history"][-40:]
         if not dry:
@@ -271,10 +310,12 @@ def run_pass(dry=False, no_reply=False):
             continue
         try:
             lead = fetch_lead(con, th["ops_id"])
-        except IndexError:
+        except (IndexError, TypeError):
             continue
-        if lead["is_test"]:
-            continue                                  # drill thread: human handles it
+        if not lead:
+            continue
+        if lead["is_test"] and "engine=on" not in (lead.get("tags") or []):
+            continue                                  # drill thread: manual unless engine=on
         if not lead["autopilot"]:
             continue
         if quiet:
@@ -288,9 +329,9 @@ def run_pass(dry=False, no_reply=False):
             continue                                  # already answered
         if last_out and hist[-1]["ts"] - last_out < MIN_GAP_S:
             continue                                  # anti-burst gap
-        number = jid.split("@")[0] if jid.endswith("@s.whatsapp.net") else None
+        number = jid.split("@")[0] if jid.endswith("@s.whatsapp.net") else norm_phone(lead.get("phone"))
         if not number:
-            print(f"OUT? {jid[:28]:28} lid JID — logged for owner, no direct send")
+            print(f"OUT? {jid[:28]:28} lid JID, no phone on lead — logged for owner, no direct send")
             continue
         # ---- chatflow engine decides the turn ----
         try:
