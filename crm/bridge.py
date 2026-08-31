@@ -82,7 +82,13 @@ def ist_now():
 
 def load_state():
     if os.path.exists(STATE_PATH):
-        return json.load(open(STATE_PATH))
+        s = json.load(open(STATE_PATH))
+        # sanitize: any NULL-text history entries from a corrupt prior state
+        for th in (s.get("threads") or {}).values():
+            for h in (th.get("history") or []):
+                if h.get("text") is None:
+                    h["text"] = ""
+        return s
     return {"seen": {}, "threads": {}, "sent_today": {"date": "", "n": 0},
             "lead_replies_today": {}, "stopped": {}, "_push": {}}
 
