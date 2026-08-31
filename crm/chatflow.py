@@ -108,7 +108,7 @@ def next_turn(lead, history):
     tags = list(lead.get("tags") or [])
     answered = answered_dqs(tags)
     last_in = next((h for h in reversed(history) if h["dir"] == "in"), None)
-    text = (last_in or {}).get("text", "")
+    text = (last_in or {}).get("text") or ""   # NULL-body rows (older backfills) → safe
     low = text.lower()
     business = (lead.get("business") or lead.get("name") or "aapka business").split()[0]
     intent_words = ("haan", "ha", "yes", "ok", "theek", "chalo", "karo", "shuru",
